@@ -104,6 +104,17 @@ function normalizeOrder(order: unknown): 'asc' | 'desc' {
   return order === 'desc' ? 'desc' : 'asc';
 }
 
+// listSongs 分页钳制（评审修复留痕）：offset/limit 经 IPC 来自渲染层不可信。
+//   NaN（含 Number('abc')）→ || 默认值兜底；offset 下界 0；limit 下界 1、上界 200（自定上限，
+//   防御恶意超大 limit 一次拉全库，留痕）。钳制后透传 repo，SQL 侧不再二次校验。
+function clampOffset(offset: unknown): number {
+  return Math.max(0, Math.trunc(Number(offset ?? 0)) || 0);
+}
+
+function clampLimit(limit: unknown): number {
+  return Math.min(200, Math.max(1, Math.trunc(Number(limit ?? 50)) || 50));
+}
+
 // ---------------------------------------------------------------------------
 // 注册主体
 // ---------------------------------------------------------------------------
@@ -179,8 +190,8 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
     return trackRepo.listSongs({
       sortBy: p.sortBy,
       order: normalizeOrder(p.order),
-      offset: p.offset,
-      limit: p.limit,
+      offset: clampOffset(p?.offset), // 评审修复：分页参数钳制后透传（负数/NaN/超大值防御）
+      limit: clampLimit(p?.limit),
     });
   });
 
@@ -318,7 +329,10 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
 
   register(IPC.CHANNELS.SETTINGS_SET, (_e, payload) => {
     const p = payload as IpcPayloads['settings:set'];
-    if (typeof p !== 'object' || p === null) throw new Error('settings:set 需要对象 partial');
+    // 评审修复：数组 typeof 也是 'object'，需显式 Array.isArray 拒绝（数组非合法 partial，留痕）。
+    if (typeof p !== 'object' || p === null || Array.isArray(p)) {
+      throw new Error('settings:set 需要对象 partial');
+    }
     return settingsStore.set(p);
   });
 

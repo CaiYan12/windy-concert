@@ -154,6 +154,32 @@ function seedLibrary(): void {
   playlistRepo.create('我喜欢的'); // 歌单搜索命中 '喜欢'
 }
 
+// 批量造数：额外插入 count 条曲目（id/标题有序编号），供分页钳制断言使用（留痕）。
+function seedTracks(count: number): void {
+  const { db } = ctx;
+  const trackRepo = createTrackRepo(db);
+  const artistRepo = createArtistRepo(db);
+  const albumRepo = createAlbumRepo(db);
+  const artistId = artistRepo.upsertArtist('批量艺术家');
+  const albumId = albumRepo.upsertAlbum('批量专辑', artistId);
+  const mk = (i: number) => ({
+    id: `bulk-${String(i).padStart(3, '0')}`,
+    title: `批量曲目${String(i).padStart(3, '0')}`,
+    artistId,
+    albumId,
+    artistString: '批量艺术家',
+    albumArtist: '批量艺术家',
+    albumTitle: '批量专辑',
+    filePath: `d:/m/bulk/${i}.mp3`,
+    fileName: `${i}.mp3`,
+    fileSize: 1,
+    fileMtime: 1,
+    format: 'mp3',
+    playable: true,
+  });
+  trackRepo.createMany(Array.from({ length: count }, (_, i) => mk(i)));
+}
+
 describe('registerIpcHandlers', () => {
   it('library:addFolder 直传 path → 返回 {id} 且已落库', () => {
     const res = ctx.call<{ id: number }>(IPC.CHANNELS.LIBRARY_ADD_FOLDER, { path: 'D:\\Music' });
@@ -195,6 +221,48 @@ describe('registerIpcHandlers', () => {
     seedLibrary();
     const rows = ctx.call<Array<{ id: string }>>(IPC.CHANNELS.LIBRARY_LIST_SONGS, { sortBy: 'title', order: 'asc' });
     expect(rows.length).toBe(3);
+  });
+
+  it('library:listSongs limit:-1 → 被钳制为有界返回（非全量，评审修复）', () => {
+    seedLibrary(); // 3 条曲目
+    // 钳制链：Math.trunc(-1)=-1 → Math.max(1,-1)=1 → Math.min(200,1)=1，确定性返回 1 条
+    const rows = ctx.call<Array<{ id: string }>>(IPC.CHANNELS.LIBRARY_LIST_SONGS, {
+      sortBy: 'title',
+      order: 'asc',
+      limit: -1,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(ctx.call<Array<{ id: string }>>(IPC.CHANNELS.LIBRARY_LIST_SONGS, {
+      sortBy: 'title',
+      order: 'asc',
+      limit: 1,
+    })[0].id);
+  });
+
+  it('library:listSongs limit:60 条库 + limit:"abc" → NaN 兜底默认 50（评审修复）', () => {
+    seedTracks(60);
+    const rows = ctx.call<Array<{ id: string }>>(IPC.CHANNELS.LIBRARY_LIST_SONGS, {
+      sortBy: 'title',
+      order: 'asc',
+      limit: 'abc',
+    });
+    expect(rows).toHaveLength(50); // Number('abc')=NaN → || 50 兜底
+    // offset 越过批量曲目末尾 + limit:NaN（number NaN 字面量路径）同样默认 50
+    const rows2 = ctx.call<Array<{ id: string }>>(IPC.CHANNELS.LIBRARY_LIST_SONGS, {
+      sortBy: 'title',
+      order: 'asc',
+      limit: NaN,
+    });
+    expect(rows2).toHaveLength(50);
+  });
+
+  it('library:listSongs offset:-5 → 钳制为 0，与 offset:0 结果一致（评审修复）', () => {
+    seedTracks(10);
+    const args = { sortBy: 'title' as const, order: 'asc' as const, limit: 3 };
+    const fromClamped = ctx.call<Array<{ id: string }>>(IPC.CHANNELS.LIBRARY_LIST_SONGS, { ...args, offset: -5 });
+    const fromZero = ctx.call<Array<{ id: string }>>(IPC.CHANNELS.LIBRARY_LIST_SONGS, { ...args, offset: 0 });
+    expect(fromClamped.map((r) => r.id)).toEqual(fromZero.map((r) => r.id));
+    expect(fromClamped.length).toBeGreaterThan(0);
   });
 
   it('library:listAlbums / listArtists → 真实数据', () => {
@@ -286,6 +354,12 @@ describe('registerIpcHandlers', () => {
     // 越界钳制
     const clamped = ctx.call<{ volume: number }>(IPC.CHANNELS.SETTINGS_SET, { volume: 5 });
     expect(clamped.volume).toBe(1);
+  });
+
+  it('settings:set 传数组 → 拒绝抛校验错（评审修复：Array.isArray 显式拒绝）', () => {
+    expect(() => ctx.call(IPC.CHANNELS.SETTINGS_SET, [])).toThrow(/需要对象 partial/);
+    // 设置未被污染（数组未落库）
+    expect(ctx.call<{ volume: number }>(IPC.CHANNELS.SETTINGS_GET).volume).toBe(0.8);
   });
 
   it('library:scan 增量 → scanService.scan({mode:"incremental"})', () => {

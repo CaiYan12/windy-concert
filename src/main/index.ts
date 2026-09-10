@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, normalize } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, shell, BrowserWindow, dialog, protocol, net } from 'electron';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
@@ -106,8 +106,10 @@ app.whenReady().then(() => {
   const coverRepo = createCoverRepo(db);
 
   // 启用中的音乐目录（scanService 的 getFolders 数据源）。
+  // 评审修复加固：folderRepo 存储侧已归一，此处 map path.normalize 双保险统一 win32 分隔符，
+  //   防止后续 wc-file 前缀校验因混合 '\\'/'/' 分隔符误判（留痕）。
   const getFolders = (): string[] =>
-    folderRepo.list().filter((f) => f.enabled).map((f) => f.path);
+    folderRepo.list().filter((f) => f.enabled).map((f) => normalize(f.path));
 
   // T3.2 启用目录缓存（wc-file 前缀校验数据源）：协议 handler 高频调用，避免逐请求查库；
   // 目录变更（add/remove/setEnabled）由 ipc 侧 onFoldersChanged 回调失效（留痕）。
