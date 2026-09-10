@@ -4,9 +4,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 计划版本 | V1.3 |
+| 计划版本 | V1.4 |
 | 日期 | 2026-09-10 |
-| 修订记录 | V1.0 初版；V1.1 发布形态改 build\ 绿色目录 + zip（build.bat / start.bat，NSIS 后置）；V1.2 设计案已交付验收（docs/design-handoff.md），renderer 实施基线锁定为 docs/design/tokens.css + mockups/，Phase 4~7 任务挂接设计稿，图标策略改为本地 vendored lucide-static@1.43.0；V1.3（2026-09-10，grill 会话三项裁定 + 工作流约定）：① §4.2 AGENTS.md 只读边界按该文件自身声明校正（# Project Info 以上固定只读，其下 windy-concert 区按阶段收尾约定更新）；② T1.6 trigram 措辞按实测行为修正（trigram 下限 3 字符，<3 由 §3.5d LIKE 回退兜底）；③ Phase 2 开工清单升格正文：T1.2 findByFileIdentity 改返回 TrackRow[]（唯一命中才 adopt，0 或 ≥2 按 create）、listSongs 追加 tracks.id 次级排序键、T1.4 listRecent 改 MAX(id)（原 MAX(played_at) 秒级同曲同秒会并列出重复行）；④ §5 提交纪律补阶段提交门控（状态更新后暂不提交，待用户提议代码审查完毕后统一提交） |
+| 修订记录 | V1.0 初版；V1.1 发布形态改 build\ 绿色目录 + zip（build.bat / start.bat，NSIS 后置）；V1.2 设计案已交付验收（docs/design-handoff.md），renderer 实施基线锁定为 docs/design/tokens.css + mockups/，Phase 4~7 任务挂接设计稿，图标策略改为本地 vendored lucide-static@1.43.0；V1.3（2026-09-10，grill 会话三项裁定 + 工作流约定）：① §4.2 AGENTS.md 只读边界按该文件自身声明校正（# Project Info 以上固定只读，其下 windy-concert 区按阶段收尾约定更新）；② T1.6 trigram 措辞按实测行为修正（trigram 下限 3 字符，<3 由 §3.5d LIKE 回退兜底）；③ Phase 2 开工清单升格正文：T1.2 findByFileIdentity 改返回 TrackRow[]（唯一命中才 adopt，0 或 ≥2 按 create）、listSongs 追加 tracks.id 次级排序键、T1.4 listRecent 改 MAX(id)（原 MAX(played_at) 秒级同曲同秒会并列出重复行）；④ §5 提交纪律补阶段提交门控（状态更新后暂不提交，待用户提议代码审查完毕后统一提交）；V1.4（2026-09-10）：T2.1 fixture #6 由 06-Track06.ape 改为 06-Track06.wma——实测 ffmpeg 9.0 无 ape 编码器/封装器无法产出合法 .ape，wma 同属 SCANNABLE 不可播集（CONTEXT.md 不可播定义点名 WMA），F1-3 语义等价 |
 | 上游唯一输入 | docs/finale-analysis.md（需求终稿 V2.0，23 项决策已确认） |
 | 本计划目标 | 从零建立工程，交付 0.1.0（M0.1「可日常使用的本地播放器」） |
 | 配套文档 | CONTEXT.md（领域术语表）、docs/adr/0001~0003、docs/design-plan.md + docs/design/（已验收设计基线）、docs/design-handoff.md |
