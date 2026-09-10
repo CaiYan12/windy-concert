@@ -9,7 +9,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/main/index.ts'),
-          'scanner.worker': resolve('src/main/library/scanner.worker.ts')
+          'scanner.worker': resolve('src/main/library/scanner.worker.ts') // T2.3 改 ?nodeWorker 接线后须删除此 input 条目，避免双份打包
         }
       }
     }

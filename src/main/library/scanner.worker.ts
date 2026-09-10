@@ -4,6 +4,8 @@
 //   - 入口消息：主进程→worker {type:'stat', dirs}（worker 由该消息驱动启动遍历）
 //   - skipped 通道：stat 消息携带 walker 阶段失败清单；batch 消息携带本批解析跳过清单
 //   - done 形态：全部解析完成后发一条 {type:'done', total, skipped}（total=解析产出总数，skipped=累计跳过清单）
+//   - error 形态（评审 Important #1 / Minor #1 新增）：worker 顶层异常或收到未知消息类型时，
+//     发一条 {type:'error', stage:'stat'|'parse'|'unknown', message:string} 回主进程；发送后不再继续处理该消息（避免半状态）
 import { parentPort } from 'node:worker_threads';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
@@ -59,7 +61,8 @@ export type WorkerInbound = { type: 'stat'; dirs: string[] } | { type: 'parse'; 
 export type WorkerOutbound =
   | { type: 'stat'; files: StatFile[]; skipped: string[] }
   | { type: 'batch'; parsed: ParsedTrack[]; done: number; skipped: string[] }
-  | { type: 'done'; total: number; skipped: string[] };
+  | { type: 'done'; total: number; skipped: string[] }
+  | { type: 'error'; stage: 'stat' | 'parse' | 'unknown'; message: string };
 
 // ---------------------------------------------------------------------------
 // 内部常量
@@ -70,7 +73,8 @@ const STAT_BATCH = 64;
 /** 每批回传解析条数（§3.5a 阶段 C：每 200 条一批）。 */
 const PARSE_BATCH = 200;
 
-const port = parentPort;
+// Minor #4：模块顶部一次性校验并收敛为具名 const，后续不再散布 `port!` 非空断言
+const port = parentPort!;
 if (!port) {
   throw new Error('scanner.worker 必须以 worker_threads Worker 方式启动');
 }
@@ -83,6 +87,10 @@ async function walk(dirs: string[]): Promise<{ files: StatFile[]; skipped: strin
   const queue = [...dirs];
   const rawFiles: string[] = [];
   const skipped: string[] = [];
+  // 路径去重（评审 Important #2 / F1-7「容错与路径去重」）：以小写绝对路径为键，
+  // 对齐 §3.5a 对账键大小写不敏感约定。重叠目录场景：用户先后启用 D:\Music 与 D:\Music\Sub，
+  // 同一文件会被遍历两次，仅首次出现者进入 stat 结果，重复出现者排除；重复项不单列统计（最小实现）。
+  const seenPaths = new Set<string>();
 
   while (queue.length > 0) {
     const dir = queue.shift() as string;
@@ -97,7 +105,13 @@ async function walk(dirs: string[]): Promise<{ files: StatFile[]; skipped: strin
     for (const entry of entries) {
       const p = path.join(dir, entry.name);
       if (entry.isDirectory()) queue.push(p);
-      else if (entry.isFile()) rawFiles.push(p);
+      else if (entry.isFile()) {
+        const key = p.toLowerCase();
+        if (!seenPaths.has(key)) {
+          seenPaths.add(key);
+          rawFiles.push(p);
+        }
+      }
     }
   }
 
@@ -193,7 +207,7 @@ async function parseAll(files: StatFile[]): Promise<void> {
       done: parsed.length,
       skipped: batchSkipped,
     };
-    port!.postMessage(msg);
+    port.postMessage(msg);
     parsed.length = 0;
     batchSkipped = [];
   };
@@ -219,10 +233,27 @@ async function parseAll(files: StatFile[]): Promise<void> {
 // ---------------------------------------------------------------------------
 
 port.on('message', async (msg: WorkerInbound) => {
-  if (msg.type === 'stat') {
-    const { files, skipped } = await walk(msg.dirs);
-    port!.postMessage({ type: 'stat', files, skipped } satisfies WorkerOutbound as WorkerOutbound);
-  } else if (msg.type === 'parse') {
-    await parseAll(msg.files);
+  // 顶层错误兜底（评审 Important #1）：async 处理函数内任何异常都回 error 消息，
+  // catch 后 return，不再继续处理该消息（避免半状态）。stage 标记当前处理阶段。
+  let stage: 'stat' | 'parse' | 'unknown' = 'unknown';
+  try {
+    if (msg.type === 'stat') {
+      stage = 'stat';
+      const { files, skipped } = await walk(msg.dirs);
+      port.postMessage({ type: 'stat', files, skipped } satisfies WorkerOutbound);
+    } else if (msg.type === 'parse') {
+      stage = 'parse';
+      await parseAll(msg.files);
+    } else {
+      // 未知消息类型（评审 Minor #1）：回执 error，不静默丢弃
+      port.postMessage({
+        type: 'error',
+        stage: 'unknown',
+        message: `unknown message type: ${String((msg as { type?: unknown }).type)}`,
+      } satisfies WorkerOutbound);
+    }
+  } catch (err) {
+    port.postMessage({ type: 'error', stage, message: String(err) } satisfies WorkerOutbound);
+    return;
   }
 });
