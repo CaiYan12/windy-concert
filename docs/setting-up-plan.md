@@ -694,7 +694,8 @@ electron-builder.yml（要点）：`appId: cn.windyconcert.app`、`productName: 
 
 **具体技术实现**
 
-- [ ] **T0.1 仓库初始化**：确认 `git status`（无 .git 则 `git init`）；写 `.gitignore`：`node_modules/ out/ release/ build/ *.log .workbuddy/ playwright-report/ test-results/ dev-userdata/`；建 `README.md`（一行简介 + dev/build 命令占位，Phase 8 完善）。→ 验证：`git status` 干净可提交。
+- [x] **T0.1 仓库初始化**：确认 `git status`（无 .git 则 `git init`）；写 `.gitignore`：`node_modules/ out/ release/ build/ *.log .workbuddy/ playwright-report/ test-results/ dev-userdata/`；建 `README.md`（一行简介 + dev/build 命令占位，Phase 8 完善）。→ 验证：`git status` 干净可提交。
+  > 执行备注(2026-09-10): git init 于分支 main（初始分支由 master 更名，非建分支）；.gitignore 计划条目逐字保留，另按 AGENTS.md Git Rule 追加 `.playwright-cli/`、`.design-flow.json`、`output/`（会话插件产物与设计期截图，不入库）；README 含一行简介 + dev/build 命令占位 + NODE_TLS 提示（§3.9-2）；应用户指令经 gh 创建并链接远端 origin = https://github.com/CaiYan12/windy-concert（私有，仅链接未推送——推送时机按 §5 提交纪律为阶段验收后）；另有一笔 docs 提交收录既有文档（AGENTS/CONTEXT/docs/primalreport）。
 - [ ] **T0.2 脚手架**：`npm create @quick-start/electron@latest`（交互选 React + TypeScript 模板；非交互参数以 `npm create @quick-start/electron -- --help` 实际输出为准）。得到 electron-vite 三进程骨架与 tsconfig。
 - [ ] **T0.3 依赖锁定**：对 §3.1 清单逐个 `npm view <pkg> version` 记录当日最新版，写入 package.json 并 `npm install`：`better-sqlite3 music-metadata sharp zustand react-router-dom react-virtuoso`；devDeps：`vitest @playwright/test`。装完跑 `npm run dev` 确认窗口可开（若报 electron 未下载，执行 3.9-3 修复）。
 - [ ] **T0.4 scripts/dev.mjs 与根目录 build.bat / start.bat**：dev.mjs 净化环境并透传参数 spawn 子进程：
