@@ -126,7 +126,21 @@ function makeService(workerLike?: CoverWorkerLike, over: Partial<CoverServiceDep
 
 afterEach(() => {
   while (openDbs.length) openDbs.pop()?.close();
-  while (tempDirs.length) rmSync(tempDirs.pop()!, { recursive: true, force: true });
+  // Windows delete-pending 竞态：sharp/fs 句柄刚关闭时 rmSync 可能 ENOTEMPTY，短重试消除偶发假失败
+  for (const dir of tempDirs.splice(0).reverse()) {
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+        lastErr = undefined;
+        break;
+      } catch (err) {
+        lastErr = err;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+      }
+    }
+    if (lastErr) throw lastErr;
+  }
 });
 
 // ---------------------------------------------------------------------------
