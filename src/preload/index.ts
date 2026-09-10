@@ -5,7 +5,8 @@
 //  - invoke 帮助函数用 IpcPayloads/IpcReturns 泛型映射锁死每个方法的参数与返回类型，
 //    渲染层经 `export type Api = typeof api` 推导获得准确的 Promise 类型。
 //  - on* 事件订阅返回 unsubscribe（off 同一 listener 实例）。
-//  - 模板自带的 `window.electron`（electronAPI）保留不动，§3.6 契约只新增 window.api。
+//  - T3.3 已移除模板自带的 `window.electron`（electronAPI）暴露，仅保留 §3.6 契约的
+//    window.api；模板组件对 window.electron 的用法已同步清理。
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../main/ipc/channels'
 import type { IpcPayloads, IpcReturns } from '../main/ipc/channels'
