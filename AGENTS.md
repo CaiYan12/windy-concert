@@ -233,3 +233,17 @@ Your agent and bash are running on:
 ## windy-concert
 
 update the project config and agent rules here
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (private repo `CaiYan12/windy-concert`, via `gh` CLI); external PRs are NOT a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles use their default strings: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: `CONTEXT.md` at repo root + `docs/adr/` (0001~0003). See `docs/agents/domain.md`.
