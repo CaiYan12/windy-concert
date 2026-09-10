@@ -46,6 +46,8 @@ export interface RegisterIpcDeps {
   settingsStore: SettingsStore;
   /** 启用目录来源（scanService 已注入；此处保留供将来扩展，留痕）。 */
   getFolders: () => string[];
+  /** 目录变更失效回调（T3.2）：addFolder/removeFolder/setFolderEnabled 成功后调用，供协议侧 folderCache 失效。 */
+  onFoldersChanged?: () => void;
   /** 惰性取主窗口（事件 send 在 index.ts 接线；本模块不直接用，留痕）。 */
   getMainWindow?: () => BrowserWindow | null;
   /** 目录选择框；默认 electron dialog（测试注入桩，留痕）。 */
@@ -134,6 +136,7 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
       folderPath = result[0];
     }
     const row = folderRepo.add(folderPath);
+    deps.onFoldersChanged?.(); // T3.2 失效接线：目录集合变更 → 协议侧 folderCache 失效
     return { id: row.id };
   });
 
@@ -141,6 +144,7 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
     const p = payload as IpcPayloads['library:removeFolder'];
     if (typeof p?.id !== 'number') throw new Error('library:removeFolder 需要数字 id');
     folderRepo.remove(p.id);
+    deps.onFoldersChanged?.(); // T3.2 失效接线
   });
 
   register(IPC.CHANNELS.LIBRARY_SET_FOLDER_ENABLED, (_e, payload) => {
@@ -148,6 +152,7 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
     if (typeof p?.id !== 'number') throw new Error('library:setFolderEnabled 需要数字 id');
     if (typeof p.enabled !== 'boolean') throw new Error('library:setFolderEnabled 需要布尔 enabled');
     folderRepo.setEnabled(p.id, p.enabled);
+    deps.onFoldersChanged?.(); // T3.2 失效接线：enabled 变更即启用集合变更
   });
 
   // ---- 扫描 ----

@@ -1,5 +1,7 @@
-import { app, shell, BrowserWindow, dialog } from 'electron';
-import { join } from 'path';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { app, shell, BrowserWindow, dialog, protocol, net } from 'electron';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
 import { openDatabase } from './database/connection';
@@ -15,9 +17,18 @@ import { createScanService } from './library/scanService';
 import { createSettingsStore } from './settings/settingsStore';
 import { IPC } from './ipc/channels';
 import { registerIpcHandlers } from './ipc';
+import { createFolderCache, resolveAudioRequest, resolveCoverRequest } from './library/protocols';
 
 // WC_USER_DATA 钩子保留：测试/便携化可注入 userData 目录（T0 脚手架约定，留痕）。
 if (process.env.WC_USER_DATA) app.setPath('userData', process.env.WC_USER_DATA);
+
+// T3.2 自定义协议特权声明（§3.5f）：registerSchemesAsPrivileged 必须在 app ready 前调用——
+//   本语句位于模块顶层、app.whenReady() 之前（Electron 官方约束：ready 后调用抛错，位置自查留痕）。
+//   stream: true 允许 <audio>/<img> 流式消费；supportFetchAPI: true 允许渲染层 fetch 该 scheme。
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'wc-file', privileges: { stream: true, supportFetchAPI: true } },
+  { scheme: 'wc-cover', privileges: { stream: true, supportFetchAPI: true } },
+]);
 
 // 主窗口惰性引用：scan/cover 事件 send 在窗口创建后才有效（未创建时静默丢弃）。
 let mainWindow: BrowserWindow | null = null;
@@ -98,6 +109,10 @@ app.whenReady().then(() => {
   const getFolders = (): string[] =>
     folderRepo.list().filter((f) => f.enabled).map((f) => f.path);
 
+  // T3.2 启用目录缓存（wc-file 前缀校验数据源）：协议 handler 高频调用，避免逐请求查库；
+  // 目录变更（add/remove/setEnabled）由 ipc 侧 onFoldersChanged 回调失效（留痕）。
+  const folderCache = createFolderCache(getFolders);
+
   // 封面服务：onCoverReady → webContents.send('covers:ready')（事件方向 event→r）。
   const coverService = createCoverService({
     db,
@@ -137,11 +152,44 @@ app.whenReady().then(() => {
     coverService,
     settingsStore,
     getFolders,
+    onFoldersChanged: () => folderCache.invalidate(),
     getMainWindow,
     dialog,
   });
 
   createWindow();
+
+  // ---- T3.2 自定义协议注册（§3.5f；ready 后 protocol.handle 接线）----
+  // wc-file：resolveAudioRequest 前缀校验（folderCache 供启用目录集合，目录变更经 ipc 侧失效）
+  //   → 命中放行 net.fetch(pathToFileURL) 返回流；越界 403（错误说明写入 body）；取流失败 404。
+  protocol.handle('wc-file', async (request) => {
+    const resolved = resolveAudioRequest(request.url, folderCache.get());
+    if ('error' in resolved) {
+      return new Response(resolved.error, { status: 403 });
+    }
+    try {
+      return await net.fetch(pathToFileURL(resolved.filePath).toString());
+    } catch {
+      return new Response('wc-file: 文件不存在或不可读', { status: 404 });
+    }
+  });
+
+  // wc-cover：resolveCoverRequest 校验 UUID + 尺寸白名单 → existsSync 检查 → net.fetch 返回流
+  //   （非法请求 400；文件缺失 / 取流失败 404 兜底）。
+  protocol.handle('wc-cover', async (request) => {
+    const resolved = resolveCoverRequest(request.url, coversDir);
+    if ('error' in resolved) {
+      return new Response(resolved.error, { status: 400 });
+    }
+    if (!existsSync(resolved.filePath)) {
+      return new Response('wc-cover: 封面文件不存在', { status: 404 });
+    }
+    try {
+      return await net.fetch(pathToFileURL(resolved.filePath).toString());
+    } catch {
+      return new Response('wc-cover: 封面文件不可读', { status: 404 });
+    }
+  });
 
   // 启动扫描（按设置 autoScanOnStartup；存在启用目录才后台触发，不阻塞窗口显示）。
   scanService.startupScan(settingsStore.get().autoScanOnStartup);
@@ -161,7 +209,3 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-
-// T3.2 自定义协议注册（wc-cover / wc-file）不在本任务范围：
-//   - app.whenReady 内协议注册 + ready 后 protocol.handle 接线归 T3.2。
-//   - 此处留注释占位，避免本任务越界（计划 §3.6 仅要求 channel 与 handlers 打通）。
