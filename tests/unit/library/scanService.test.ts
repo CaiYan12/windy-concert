@@ -377,4 +377,126 @@ describe('scanService', () => {
     });
     expect(typeof line.elapsedMs).toBe('number');
   });
+
+  it('⑦ C1 missing 复活：文件移除后回归原路径 → status=available 且 id 不变', async () => {
+    const ctx = makeService();
+    ctx.worker.responder = standardResponder(ctx);
+    await ctx.service.scan();
+
+    const readRows = () =>
+      ctx.db
+        .prepare('SELECT id, file_path, status FROM tracks ORDER BY file_path')
+        .all() as Array<{ id: string; file_path: string; status: string }>;
+    const before = readRows();
+    expect(before.every((r) => r.status === 'available')).toBe(true);
+
+    // 文件移除：stat 回放不含任何路径 → 全部 missing
+    ctx.worker.responder = (msg) => {
+      if (msg.type === 'stat') {
+        ctx.worker.emit('message', { type: 'stat', files: [], skipped: [] } satisfies WorkerOutbound);
+      }
+    };
+    const missingSummary = await ctx.service.scan();
+    expect(missingSummary.missingMarked).toBe(3);
+    expect(readRows().every((r) => r.status === 'missing')).toBe(true);
+
+    // 文件回归原路径（size/mtime 不变 → unchanged 分支）：status 复活 available、id 不变
+    ctx.worker.responder = standardResponder(ctx);
+    const backSummary = await ctx.service.scan();
+    expect(backSummary.parsed).toBe(0);
+    expect(backSummary.missingMarked).toBe(0);
+    const after = readRows();
+    expect(after.map((r) => r.id)).toEqual(before.map((r) => r.id));
+    expect(after.every((r) => r.status === 'available')).toBe(true);
+
+    // changed 分支复活：a1.mp3 回归但 mtime 变化 → 重解析且 status=available、id 保留
+    ctx.worker.responder = (msg) => {
+      if (msg.type === 'stat') {
+        ctx.worker.emit('message', {
+          type: 'stat',
+          files: [statFile('D:/music/a1.mp3', 100, 2000)],
+          skipped: [],
+        } satisfies WorkerOutbound);
+      } else if (msg.type === 'parse') {
+        ctx.worker.emit('message', {
+          type: 'batch',
+          parsed: [parsedTrack('D:/music/a1.mp3', { title: 'Song 1' })],
+          done: 1,
+          skipped: [],
+        } satisfies WorkerOutbound);
+        ctx.worker.emit('message', { type: 'done', total: 1, skipped: [] } satisfies WorkerOutbound);
+      }
+    };
+    const changedSummary = await ctx.service.scan();
+    expect(changedSummary.parsed).toBe(1);
+    const a1 = ctx.db
+      .prepare("SELECT id, status FROM tracks WHERE file_path = 'D:/music/a1.mp3'")
+      .get() as { id: string; status: string };
+    expect(a1.id).toBe(before.find((r) => r.file_path === 'D:/music/a1.mp3')!.id);
+    expect(a1.status).toBe('available');
+  });
+
+  it('⑧ I1 worker error → scan() reject 且 inFlight 清理后可重新 scan()', async () => {
+    const ctx = makeService();
+    ctx.worker.responder = (msg) => {
+      if (msg.type === 'stat') {
+        ctx.worker.emit('message', {
+          type: 'error',
+          stage: 'stat',
+          message: 'boom',
+        } satisfies WorkerOutbound);
+      }
+    };
+    await expect(ctx.service.scan()).rejects.toThrow('扫描 worker 错误（stage=stat）: boom');
+
+    // inFlight 已清理：同一 worker 换正常回放可重新扫描
+    ctx.worker.responder = standardResponder(ctx);
+    const summary = await ctx.service.scan();
+    expect(summary.total).toBe(3);
+    expect(summary.parsed).toBe(3);
+  });
+
+  it('⑨ I1 批事务失败 → reject 而非 unhandled（同批重复路径触发 UNIQUE 冲突）', async () => {
+    const ctx = makeService();
+    ctx.worker.responder = (msg) => {
+      if (msg.type === 'stat') {
+        ctx.worker.emit('message', {
+          type: 'stat',
+          files: [statFile('D:/music/dup.mp3')],
+          skipped: [],
+        } satisfies WorkerOutbound);
+      } else if (msg.type === 'parse') {
+        // 伪 worker 异常回放：同批两条同路径 → 第二条 INSERT 违反 file_path UNIQUE → 批事务抛错
+        ctx.worker.emit('message', {
+          type: 'batch',
+          parsed: [parsedTrack('D:/music/dup.mp3'), parsedTrack('D:/music/dup.mp3', { title: 'Dup 2' })],
+          done: 2,
+          skipped: [],
+        } satisfies WorkerOutbound);
+      }
+    };
+    await expect(ctx.service.scan()).rejects.toThrow(/UNIQUE/i);
+
+    // 失败后事务回滚（无残留行）且 inFlight 已清理：正常回放可重新扫描
+    expect((ctx.db.prepare('SELECT COUNT(*) AS c FROM tracks').get() as { c: number }).c).toBe(0);
+    ctx.worker.responder = (msg) => {
+      if (msg.type === 'stat') {
+        ctx.worker.emit('message', {
+          type: 'stat',
+          files: [statFile('D:/music/dup.mp3')],
+          skipped: [],
+        } satisfies WorkerOutbound);
+      } else if (msg.type === 'parse') {
+        ctx.worker.emit('message', {
+          type: 'batch',
+          parsed: [parsedTrack('D:/music/dup.mp3')],
+          done: 1,
+          skipped: [],
+        } satisfies WorkerOutbound);
+        ctx.worker.emit('message', { type: 'done', total: 1, skipped: [] } satisfies WorkerOutbound);
+      }
+    };
+    const summary = await ctx.service.scan();
+    expect(summary.parsed).toBe(1);
+  });
 });

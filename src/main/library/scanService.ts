@@ -285,6 +285,8 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
 
       const changedById = new Map<string, string>();
       const toParse: StatFile[] = [];
+      // C1（评审裁定）：missing 行文件回到原路径的复活集合（unchanged/changed 分支收集）。
+      const reviveIds: string[] = [];
       let adopted = 0;
 
       for (const f of statResult.files) {
@@ -297,23 +299,37 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
             status: 'missing',
           });
           if (hits.length === 1) {
-            trackRepo.updateFileIdentity(hits[0].id, { filePath: f.path });
-            trackRepo.setStatus([hits[0].id], 'available');
+            // M1（评审裁定）：挪路径与复活 status 两写原子化——半状态残留与 C1 叠加会永久 missing。
+            deps.db.transaction(() => {
+              trackRepo.updateFileIdentity(hits[0].id, { filePath: f.path });
+              trackRepo.setStatus([hits[0].id], 'available');
+            })();
             adopted += 1;
           } else {
             toParse.push(f);
           }
         } else if (row.fileSize !== f.size || row.fileMtime !== f.mtime) {
-          // changed：三元组有变 → 重新解析、保留原 id
+          // changed：三元组有变 → 重新解析、保留原 id；
+          // C1：若该行此前被标 missing（文件移除后回到原路径且内容有变），需一并复活。
           changedById.set(k, row.id);
           toParse.push(f);
+          if (row.status === 'missing') reviveIds.push(row.id);
+        } else if (row.status === 'missing') {
+          // C1（评审裁定）：unchanged 分支（路径在且 size+mtime 均等）→ 跳过解析，但 §3.5a
+          // 原文未提 status 复活——按 T2.6 F1-6「文件恢复 → available」与 CONTEXT.md 曲目
+          // 状态定义补齐：missing 行文件回到原路径 → status 复活为 available，否则 status
+          // 永远停留 missing（破 F1-6、T2.6 场景与 M5 拔盘重连场景）。
+          reviveIds.push(row.id);
         }
-        // 其余 = unchanged（路径在且 size+mtime 均等）→ 跳过
+        // 其余 = unchanged 且非 missing（路径在、size+mtime 均等）→ 跳过
       }
 
       // 反向对账：DB 中路径未出现在 stat 结果 → missing（不删记录）。
       // adopt 的行在标记前已把 file_path 改写为 stat 内路径，天然被 except 排除。
       trackRepo.markMissing([...statByKey.keys()]);
+      // C1 复活统一落库：置于 markMissing 之后——markMissing 仅对 available 行操作，
+      // 与复活调用互不干扰；复活行路径必在 stat 结果内，亦不会被误标。
+      if (reviveIds.length > 0) trackRepo.setStatus(reviveIds, 'available');
       const missingMarked = identities.filter(
         (r) => r.status === 'available' && !statByKey.has(r.filePath.toLowerCase()),
       ).length;
@@ -359,7 +375,15 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
             onMessage: (m) => {
               if (m.type === 'batch') {
                 const batchMsg = m as BatchMsg;
-                applyBatch(batchMsg.parsed);
+                // I1（评审裁定）：批事务同步异常必须转 reject——真实 worker 下 listener 抛错
+                // 会变成主进程 uncaughtException，runScan Promise 永不 settle、inFlight 卡死。
+                try {
+                  applyBatch(batchMsg.parsed);
+                } catch (err) {
+                  detachParse();
+                  reject(err instanceof Error ? err : new Error(String(err)));
+                  return;
+                }
                 parsed += batchMsg.parsed.length;
                 emitProgress('parse', parsed, toParseTotal);
               } else if (m.type === 'done') {
