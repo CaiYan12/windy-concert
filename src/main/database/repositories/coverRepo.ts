@@ -10,8 +10,11 @@ import { randomUUID } from 'node:crypto';
 
 export type CoverSource = 'embedded' | 'folder';
 
-/** insertCover 输入：封面来源必填，其余为可选元数据（folder 来源才填 originalPath）。 */
+/** insertCover 输入：封面来源必填，其余为可选元数据（folder 来源才填 originalPath）。
+ * T2.4 扩签：id 可选预生成——封面目录名需先于落库确定（文件命名与 db 行原子一致），
+ * coverService 用 crypto.randomUUID() 预生成后传入；未传则仍由 repo 生成（原行为不变）。 */
 export interface CoverInsert {
+  id?: string;
   source: CoverSource;
   originalPath?: string | null;
   mime?: string | null;
@@ -24,7 +27,7 @@ export interface CoverInsert {
 // ---------------------------------------------------------------------------
 
 export interface CoverRepo {
-  /** insertCover → 新封面 id（crypto.randomUUID()，§3.1 UUID 行）。 */
+  /** insertCover → 封面 id（T2.4 扩签：传入预生成 id 则原样使用，否则 crypto.randomUUID()，§3.1 UUID 行）。 */
   insertCover(cover: CoverInsert): string;
   /** setAlbumCover 联动 albums.cover_id（封面归属专辑的唯一落点）。 */
   setAlbumCover(albumId: number, coverId: string): void;
@@ -45,7 +48,7 @@ export function createCoverRepo(db: Database): CoverRepo {
   // -------------------------------------------------------------------------
 
   function insertCover(cover: CoverInsert): string {
-    const id = randomUUID(); // §3.1：UUID 由 repo 生成并回传（调用方不传 id）。
+    const id = cover.id ?? randomUUID(); // §3.1：UUID 由 repo 生成并回传（T2.4 扩签：可传预生成 id）。
     stmtInsert.run(
       id,
       cover.source,

@@ -2,12 +2,13 @@ import { defineConfig } from 'vitest/config'
 import { fileURLToPath } from 'node:url'
 
 // T2.3：`?nodeWorker` 导入由 electron-vite workerPlugin 在 build/dev 时编译，纯 vitest 无法解析——
-// 统一替换为桩模块（scanService 默认 workerFactory 在测试中不会被调用：测试一律注入伪 worker）。
+// 统一替换为桩模块（scanService/coverService 默认 workerFactory 在测试中不会被调用：测试一律注入伪 worker）。
 const nodeWorkerStub = fileURLToPath(new URL('./tests/stubs/nodeWorkerStub.ts', import.meta.url))
 
 export default defineConfig({
   resolve: {
-    alias: [{ find: /^\.\/scanner\.worker\?nodeWorker$/, replacement: nodeWorkerStub }]
+    // T2.4：追加 cover.worker 桩（与 scanner.worker 同一 `?nodeWorker` 接线方式）
+    alias: [{ find: /^\.\/(scanner|cover)\.worker\?nodeWorker$/, replacement: nodeWorkerStub }]
   },
   test: {
     projects: [
