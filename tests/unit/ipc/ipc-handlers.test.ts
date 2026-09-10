@@ -302,4 +302,10 @@ describe('registerIpcHandlers', () => {
   it('i18n:getMessages 资源缺失 → 返回 {}（T3.5 未交付，留痕）', () => {
     expect(ctx.call<Record<string, string>>(IPC.CHANNELS.I18N_GET_MESSAGES, { lang: 'zh-CN' })).toEqual({});
   });
+
+  it('i18n:getMessages lang 含路径穿越（../）→ 未命中白名单抛错（评审修复）', () => {
+    expect(() => ctx.call(IPC.CHANNELS.I18N_GET_MESSAGES, { lang: '../evil' })).toThrow(/非法 lang/);
+    // 空段 / 非法字符同样被白名单拒绝
+    expect(() => ctx.call(IPC.CHANNELS.I18N_GET_MESSAGES, { lang: 'zh--../../x' })).toThrow(/非法 lang/);
+  });
 });

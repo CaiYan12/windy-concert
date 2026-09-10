@@ -41,6 +41,12 @@ function createWindow(): void {
   });
   mainWindow = win;
 
+  // 关闭时清引用：macOS 关窗不退出（activate 可重建）场景下防悬挂引用
+  // 触发 "Object has been destroyed"（send 侧 mainWindow?. 惰性取用依赖此清理，留痕）。
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+  });
+
   win.on('ready-to-show', () => {
     win.show();
   });

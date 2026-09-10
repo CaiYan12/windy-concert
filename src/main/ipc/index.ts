@@ -121,6 +121,9 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
   // ---- 目录管理 ----
   register(IPC.CHANNELS.LIBRARY_ADD_FOLDER, (_e, payload) => {
     const p = (payload ?? {}) as IpcPayloads['library:addFolder'];
+    if (p.path !== undefined && typeof p.path !== 'string') {
+      throw new Error('library:addFolder 需要字符串 path');
+    }
     let folderPath = p.path;
     if (!folderPath) {
       // 省 path：弹系统目录选择框（dialog 注入便于测试；取消选择抛错，留痕）。
@@ -150,13 +153,18 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
   // ---- 扫描 ----
   register(IPC.CHANNELS.LIBRARY_SCAN, () => {
     // 增量扫描：fire-and-forget，进度经 scan:progress 事件回报（不阻塞 invoke）。
-    void scanService.scan({ mode: 'incremental' });
+    // catch 防止后台扫描失败变成 unhandled rejection（评审修复留痕）。
+    void scanService
+      .scan({ mode: 'incremental' })
+      .catch((err: unknown) => console.error('[ipc] scan 失败:', err));
   });
 
   register(IPC.CHANNELS.LIBRARY_RESCAN_ALL, () => {
     // 全量重扫：先清空封面去重状态机（允许刷新封面），再无视三元组全量重解析。
     coverService.resetAlbumStates();
-    void scanService.scan({ mode: 'full' });
+    void scanService
+      .scan({ mode: 'full' })
+      .catch((err: unknown) => console.error('[ipc] scan 失败:', err));
   });
 
   // ---- 曲目 / 专辑 / 艺术家 ----
@@ -285,9 +293,10 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
   register(IPC.CHANNELS.HISTORY_UPDATE_PLAY_OUTCOME, (_e, payload) => {
     const p = payload as IpcPayloads['history:updatePlayOutcome'];
     if (typeof p?.historyId !== 'number') throw new Error('history:updatePlayOutcome 需要数字 historyId');
+    // completed 严格布尔化：仅 === true 记 1，其余（含 undefined / truthy 非布尔）一律 0（评审修复留痕）。
     historyRepo.updateOutcome(p.historyId, {
       playedDuration: p.playedDuration,
-      completed: p.completed,
+      completed: p.completed === true,
     });
   });
 
@@ -309,9 +318,16 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
   });
 
   // ---- i18n（T3.5 资源文件尚未交付：缺失返回 {}，留痕）----
+  // lang 白名单：仅允许 BCP-47 风格语言标签（zh / zh-CN / en-US 等），
+  // 阻断 "../" 路径穿越拼接 `${lang}.json` 读任意 JSON（评审修复，不命中直接抛错留痕）。
+  const LANG_RE = /^[a-zA-Z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
+
   register(IPC.CHANNELS.I18N_GET_MESSAGES, (_e, payload) => {
     const p = payload as IpcPayloads['i18n:getMessages'];
     if (typeof p?.lang !== 'string' || p.lang.length === 0) return {};
+    if (!LANG_RE.test(p.lang)) {
+      throw new Error(`i18n:getMessages 非法 lang "${p.lang}"，未命中白名单`);
+    }
     const app = getElectron().app;
     // 资源目录解析：打包态走 process.resourcesPath，开发态走 cwd/resources（§3.8）。
     // app 在测试 / 非标准环境可能不可用 —— 兜底到开发态路径（文件缺失仍返回 {}，留痕）。
