@@ -696,7 +696,8 @@ electron-builder.yml（要点）：`appId: cn.windyconcert.app`、`productName: 
 
 - [x] **T0.1 仓库初始化**：确认 `git status`（无 .git 则 `git init`）；写 `.gitignore`：`node_modules/ out/ release/ build/ *.log .workbuddy/ playwright-report/ test-results/ dev-userdata/`；建 `README.md`（一行简介 + dev/build 命令占位，Phase 8 完善）。→ 验证：`git status` 干净可提交。
   > 执行备注(2026-09-10): git init 于分支 main（初始分支由 master 更名，非建分支）；.gitignore 计划条目逐字保留，另按 AGENTS.md Git Rule 追加 `.playwright-cli/`、`.design-flow.json`、`output/`（会话插件产物与设计期截图，不入库）；README 含一行简介 + dev/build 命令占位 + NODE_TLS 提示（§3.9-2）；应用户指令经 gh 创建并链接远端 origin = https://github.com/CaiYan12/windy-concert（私有，仅链接未推送——推送时机按 §5 提交纪律为阶段验收后）；另有一笔 docs 提交收录既有文档（AGENTS/CONTEXT/docs/primalreport）。
-- [ ] **T0.2 脚手架**：`npm create @quick-start/electron@latest`（交互选 React + TypeScript 模板；非交互参数以 `npm create @quick-start/electron -- --help` 实际输出为准）。得到 electron-vite 三进程骨架与 tsconfig。
+- [x] **T0.2 脚手架**：`npm create @quick-start/electron@latest`（交互选 React + TypeScript 模板；非交互参数以 `npm create @quick-start/electron -- --help` 实际输出为准）。得到 electron-vite 三进程骨架与 tsconfig。
+  > 执行备注(2026-09-10): create-electron@1.0.30 无 --help 支持（实跑掉入交互 prompt），非交互参数改经该包 index.js 源码（minimist）实证为 `--template react-ts --skip`，命令 `npm create @quick-start/electron@latest -- <临时目录> --template react-ts --skip`；仓库外临时目录生成后并入根目录，脚手架自带 .gitignore/README.md 丢弃、既有文件零覆盖（spec 审查 26 文件全为 A 状态）；未运行 npm install；package.json name 改为 windy-concert；模板交付 electron ^39.2.6 / electron-vite ^5.0.0 / react ^19.2.1，与 §3.1 版本策略列（React 18 / electron-vite ^2）存在漂移，留待 T0.3 经 npm view 核实后提请用户决策；质量审查 APPROVED（sandbox:false 为模板默认仅跟踪，dev.mjs 缺失属 T0.4 范围）。
 - [ ] **T0.3 依赖锁定**：对 §3.1 清单逐个 `npm view <pkg> version` 记录当日最新版，写入 package.json 并 `npm install`：`better-sqlite3 music-metadata sharp zustand react-router-dom react-virtuoso`；devDeps：`vitest @playwright/test`。装完跑 `npm run dev` 确认窗口可开（若报 electron 未下载，执行 3.9-3 修复）。
 - [ ] **T0.4 scripts/dev.mjs 与根目录 build.bat / start.bat**：dev.mjs 净化环境并透传参数 spawn 子进程：
 
