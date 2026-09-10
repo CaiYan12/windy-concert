@@ -4,6 +4,7 @@ out/
 release/
 build/
 *.tsbuildinfo
+electron.vite.config.*.mjs
 
 # 日志
 *.log
