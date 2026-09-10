@@ -112,4 +112,67 @@ describe('settingsStore', () => {
     const onDisk = JSON.parse(readFileSync(path.join(dir, 'settings.json'), 'utf-8'));
     expect(Object.keys(onDisk)).toEqual(['language', 'autoScanOnStartup', 'volume', 'muted']);
   });
+
+  it('类型非法 JSON：类型不符的键回退默认值，合法键保留', () => {
+    const dir = makeSettingsDir();
+    // 手工写入类型错误 JSON（模拟外部手动编辑 / 旧版本脏数据）
+    writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify({
+        language: 42, // 应为 string → 回退 'zh-CN'
+        autoScanOnStartup: 1, // 应为 boolean → 回退 true
+        volume: '0.8', // 应为 number → 回退 0.8
+        muted: 'yes', // 应为 boolean → 回退 false
+      }),
+      'utf-8',
+    );
+    const store = createSettingsStore({ settingsDir: dir });
+    const s = store.get();
+    // 四键全部类型非法 → 全部回退默认值
+    expect(s).toEqual({
+      language: 'zh-CN',
+      autoScanOnStartup: true,
+      volume: 0.8,
+      muted: false,
+    });
+  });
+
+  it('类型非法 JSON（部分键）：非法键回退默认值，合法键保留', () => {
+    const dir = makeSettingsDir();
+    writeFileSync(
+      path.join(dir, 'settings.json'),
+      JSON.stringify({
+        language: 'zh-CN', // 合法 → 保留
+        autoScanOnStartup: false, // 合法 → 保留
+        volume: '0.8', // 类型非法 → 回退默认 0.8
+        muted: true, // 合法 → 保留
+      }),
+      'utf-8',
+    );
+    const store = createSettingsStore({ settingsDir: dir });
+    const s = store.get();
+    expect(s.language).toBe('zh-CN');
+    expect(s.autoScanOnStartup).toBe(false);
+    expect(s.muted).toBe(true);
+    expect(s.volume).toBe(0.8);
+  });
+
+  it('set 传含未知键的 partial（模拟 renderer as any）→ 落盘文件不含未知键', () => {
+    const dir = makeSettingsDir();
+    const store = createSettingsStore({ settingsDir: dir });
+    // 运行时不可信来源：T3.1 IPC 后 renderer 传参不带类型保护，用 as any 模拟
+    const malicious = { muted: true, theme: 'dark', injected: 'x' } as unknown as Parameters<
+      typeof store.set
+    >[0];
+    const updated = store.set(malicious);
+    // 合法键生效
+    expect(updated.muted).toBe(true);
+    // 返回值不含未知键
+    expect(Object.keys(updated)).toEqual(['language', 'autoScanOnStartup', 'volume', 'muted']);
+    // 落盘文件不含未知键
+    const onDisk = JSON.parse(readFileSync(path.join(dir, 'settings.json'), 'utf-8'));
+    expect(Object.keys(onDisk)).toEqual(['language', 'autoScanOnStartup', 'volume', 'muted']);
+    expect(onDisk.theme).toBeUndefined();
+    expect(onDisk.injected).toBeUndefined();
+  });
 });
