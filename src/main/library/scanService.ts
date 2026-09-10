@@ -2,6 +2,8 @@
 //   A stat：worker 遍历目录产出 {path,size,mtime,ext}
 //   B 分类：主进程对账 DB 身份行 → unchanged 跳过 / changed 保留 id 重解析 / adopt 挪路径不重解析 / create 新 UUID
 //           反向对账：DB 路径未出现在 stat 结果 → markMissing（不删记录）
+//           V1.5 用户裁定：markMissing 前置到分类循环之前（§3.5a 原文顺序为分类后标记）——
+//           单次移动（A→B）后一次重扫即可被 adopt 命中保 UUID，详见阶段 B 内留痕注释。
 //   C parse：worker 仅解析 changed+create，每 200 条一批回传
 //   D 写库：每批一个事务；主艺人（策略 2）+ 专辑归组键(album+albumArtist) upsert；收尾 recountStats()
 //   E 封面：onCoverJob 接缝投递（本任务只留接缝，队列与 folder 探测归 T2.4）
@@ -308,6 +310,19 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
       const reviveIds: string[] = [];
       let adopted = 0;
 
+      // V1.5 用户裁定：markMissing 前置（§3.5a 原文顺序为分类后标记）——先把 stat 缺席的
+      // available 行标 missing，再进入分类循环。效果：单次移动（A→B，一次重扫）时新路径 B
+      // 不在 dbByPath，adopt 的 findByFileIdentity {status:'missing'} 能命中刚标记的 A 行，
+      // 挪路径保 UUID（播放计数/收藏不丢）；复制场景（A、B 同时存在）旧行路径仍在 stat 结果
+      // 内不会被标 missing，B 走 create 新 UUID，无振荡。C1 复活逻辑不受影响：markMissing
+      // 只标记 available 缺席行，更早扫描遗留的 missing 行路径回归仍靠下方 reviveIds 复活。
+      // 反向对账：DB 中路径未出现在 stat 结果 → missing（不删记录）。
+      trackRepo.markMissing([...statByKey.keys()]);
+      // missingMarked 语义保持：本扫描缺席行数（按 identities 快照统计 available 且路径缺席）。
+      const missingMarked = identities.filter(
+        (r) => r.status === 'available' && !statByKey.has(r.filePath.toLowerCase()),
+      ).length;
+
       for (const f of statResult.files) {
         const k = f.path.toLowerCase();
         const row = dbByPath.get(k);
@@ -343,15 +358,10 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
         // 其余 = unchanged 且非 missing（路径在、size+mtime 均等）→ 跳过
       }
 
-      // 反向对账：DB 中路径未出现在 stat 结果 → missing（不删记录）。
-      // adopt 的行在标记前已把 file_path 改写为 stat 内路径，天然被 except 排除。
-      trackRepo.markMissing([...statByKey.keys()]);
-      // C1 复活统一落库：置于 markMissing 之后——markMissing 仅对 available 行操作，
-      // 与复活调用互不干扰；复活行路径必在 stat 结果内，亦不会被误标。
+      // C1 复活统一落库：置于分类循环之后——markMissing（已前置）只把 stat 缺席的 available
+      // 行标 missing，不触碰既有 missing 行，与复活调用互不干扰；复活行路径必在 stat 结果内，
+      // 亦不会被误标。adopt 命中的行已在分支内事务里 setStatus('available')，无需复活。
       if (reviveIds.length > 0) trackRepo.setStatus(reviveIds, 'available');
-      const missingMarked = identities.filter(
-        (r) => r.status === 'available' && !statByKey.has(r.filePath.toLowerCase()),
-      ).length;
 
       // ---------------- 阶段 C + D：parse 与逐批事务写库 ----------------
       let parsed = 0;

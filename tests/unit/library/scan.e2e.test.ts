@@ -18,6 +18,7 @@ import {
   rmSync,
   statSync,
   unlinkSync,
+  utimesSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -278,6 +279,73 @@ describe('策略1 移动目录 id 不变 / 改名失配新建', () => {
     expect(missingRow.file_path).toBe(orig);
     expect(freshRow.id).not.toBe(id0); // 新 UUID
     expect(freshRow.file_path).toBe(path.join(ctx.musicDir, 'renamed.mp3'));
+  });
+
+  // V1.5 用户裁定（markMissing 前置）：单次移动（A→B）后一次重扫即保 UUID，
+  // 无需旧实现要求的「移出扫描 → missing → 移回」三步流。
+  it('单次移动：文件移入另一子目录一次重扫 → adopt 保 id（missingMarked 前置验证）', async () => {
+    const ctx = makeCtx();
+    const orig = path.join(ctx.musicDir, '01-夜曲.mp3');
+    copyFixture(FIXTURE_FILES.mp3Full, orig);
+    await ctx.service.scan();
+    const id0 = (tracksOf(ctx.db)[0] as { id: string }).id;
+
+    // 一次重扫内完成移动：rename 保 mtime，(fileName,size,mtime) 三元组不变
+    const sub = path.join(ctx.musicDir, 'sub');
+    mkdirSync(sub);
+    renameSync(orig, path.join(sub, '01-夜曲.mp3'));
+    const summary = await ctx.service.scan();
+
+    // 前置 markMissing 先把缺席的旧行标 missing（计数语义保持），随后 adopt 命中复活
+    expect(summary.missingMarked).toBe(1);
+    expect(summary.adopted).toBe(1);
+    expect(summary.parsed).toBe(0);
+
+    const rows = tracksOf(ctx.db);
+    expect(rows).toHaveLength(1);
+    const row = rows[0] as { id: string; file_path: string; status: string };
+    expect(row.id).toBe(id0); // 策略 1：UUID 不换
+    expect(row.file_path).toBe(path.join(sub, '01-夜曲.mp3'));
+    expect(row.status).toBe('available');
+  });
+
+  // 复制场景无振荡：新旧路径同时存在 → 旧行路径仍在 stat 内不被标 missing，
+  // 新路径 adopt 过滤（status='missing'）0 命中 → create 新 UUID，旧行不动。
+  // 副本经 utimesSync 对齐原 mtime：(fileName,size,mtime) 三元组完全一致，
+  // 若旧行被误标 missing 则 adopt 会挤占——本用例即守卫该振荡风险。
+  it('复制不挤占：同文件复制到另一目录一次重扫 → 新 UUID（create）且原行 available 不动', async () => {
+    const ctx = makeCtx();
+    const orig = path.join(ctx.musicDir, '01-夜曲.mp3');
+    copyFixture(FIXTURE_FILES.mp3Full, orig);
+    await ctx.service.scan();
+    const id0 = (tracksOf(ctx.db)[0] as { id: string }).id;
+
+    const copyDir = path.join(ctx.musicDir, 'copy');
+    mkdirSync(copyDir);
+    const copyPath = path.join(copyDir, '01-夜曲.mp3');
+    copyFixture(FIXTURE_FILES.mp3Full, copyPath);
+    const st = statSync(orig);
+    utimesSync(copyPath, st.atime, st.mtime); // 对齐 mtime → 身份三元组与原行完全一致
+    const summary = await ctx.service.scan();
+
+    expect(summary.adopted).toBe(0);
+    expect(summary.parsed).toBe(1);
+    expect(summary.missingMarked).toBe(0); // 原件留存 → 无缺席行
+
+    const rows = tracksOf(ctx.db);
+    expect(rows).toHaveLength(2);
+    const origRow = rows.find((r) => r.file_path === orig) as {
+      id: string;
+      status: string;
+    };
+    const copyRow = rows.find((r) => r.file_path !== orig) as {
+      id: string;
+      status: string;
+    };
+    expect(origRow.id).toBe(id0);
+    expect(origRow.status).toBe('available'); // 无振荡
+    expect(copyRow.id).not.toBe(id0); // create 新 UUID
+    expect(copyRow.status).toBe('available');
   });
 });
 
