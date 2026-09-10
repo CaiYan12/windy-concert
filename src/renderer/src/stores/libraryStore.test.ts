@@ -97,12 +97,18 @@ function makeTrack(id: string): TrackRow {
   }
 }
 
-function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+function deferred<T>(): {
+  promise: Promise<T>
+  resolve: (value: T) => void
+  reject: (reason?: unknown) => void
+} {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((r) => {
-    resolve = r
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
@@ -143,32 +149,55 @@ describe('libraryStore.refresh', () => {
     expect(harness.calls).toEqual([{ sortBy: 'title', order: 'asc', offset: 0, limit: 50 }])
   })
 
-  it('setSort 更新参数（offset 归零）后 refresh 用新参数调用', async () => {
+  it('setSort 更新参数（offset 归零）并自动以新参数取数', async () => {
     const harness = installApi(async () => [])
 
     useLibraryStore.getState().setSort('year', 'desc')
+
     expect(useLibraryStore.getState().params).toEqual({
       sortBy: 'year',
       order: 'desc',
       offset: 0,
       limit: 50
     })
-
-    await useLibraryStore.getState().refresh()
+    // 自动 refresh：set 参数后 listSongs 立即以新参数发出，调用方无需显式 refresh
     expect(harness.calls).toEqual([{ sortBy: 'year', order: 'desc', offset: 0, limit: 50 }])
+    await flush()
+    expect(useLibraryStore.getState().loading).toBe(false)
   })
 
-  it('setPage 后 refresh 用新分页调用，且 setSort 会把 offset 归零', async () => {
+  it('setPage 自动以新分页取数；setSort 保留 limit 并把 offset 归零', async () => {
     const harness = installApi(async () => [])
 
     useLibraryStore.getState().setPage(100, 25)
-    await useLibraryStore.getState().refresh()
     expect(harness.calls[0]).toEqual({ sortBy: 'title', order: 'asc', offset: 100, limit: 25 })
 
+    await flush()
     // 换排序 = 回到首页：保留 limit，offset 归零
     useLibraryStore.getState().setSort('artist', 'asc')
-    await useLibraryStore.getState().refresh()
     expect(harness.calls[1]).toEqual({ sortBy: 'artist', order: 'asc', offset: 0, limit: 25 })
+  })
+
+  it('setSort/setPage 确实触发 refresh（桩断言被调用次数与带出的新参数）', async () => {
+    const harness = installApi(async () => [])
+    const realRefresh = useLibraryStore.getState().refresh
+    const spy = vi.fn(realRefresh) // 包一层真实 refresh：既观测触发，又保留真实取数
+    useLibraryStore.setState({ refresh: spy })
+    try {
+      useLibraryStore.getState().setSort('duration', 'desc')
+      expect(spy).toHaveBeenCalledTimes(1)
+
+      useLibraryStore.getState().setPage(0, 10)
+      expect(spy).toHaveBeenCalledTimes(2)
+
+      await flush()
+      expect(harness.calls).toEqual([
+        { sortBy: 'duration', order: 'desc', offset: 0, limit: 50 },
+        { sortBy: 'duration', order: 'desc', offset: 0, limit: 10 }
+      ])
+    } finally {
+      useLibraryStore.setState({ refresh: realRefresh }) // 还原，避免桩泄漏到后续用例
+    }
   })
 
   it('并发保护：连发两次 refresh，旧请求晚到不覆盖新结果（序号令牌）', async () => {
@@ -187,6 +216,74 @@ describe('libraryStore.refresh', () => {
     d1.resolve([makeTrack('first')]) // 先发后到 → 应被丢弃
     await r1
     expect(ids()).toEqual(['second'])
+  })
+
+  it('并发保护（反向）：旧请求「失败」晚到不得覆盖新请求的成功状态', async () => {
+    // 可控 promise：A（旧）慢、B（新）快——B 先成功，A 后 reject。
+    const slowA = deferred<TrackRow[]>()
+    const fastB = deferred<TrackRow[]>()
+    const queue = [slowA.promise, fastB.promise]
+    installApi(() => queue.shift() ?? Promise.resolve([]))
+
+    const rA = useLibraryStore.getState().refresh() // seq=1，等待 slowA
+    const rB = useLibraryStore.getState().refresh() // seq=2，等待 fastB
+
+    fastB.resolve([makeTrack('new')]) // 新请求先成功
+    await rB
+    expect(ids()).toEqual(['new'])
+    expect(useLibraryStore.getState().error).toBeNull()
+    expect(useLibraryStore.getState().loading).toBe(false)
+
+    slowA.reject(new Error('late-failure')) // 旧请求失败晚到
+    await rA // 失败被 store 内部吞掉，不 reject 到调用方
+    const state = useLibraryStore.getState()
+    // 守护 refresh 的 catch 分支序号守卫：旧请求的失败必须被丢弃，不得污染新结果
+    expect(state.error).toBeNull()
+    expect(ids()).toEqual(['new'])
+    expect(state.loading).toBe(false)
+  })
+
+  it('loading 转换：in-flight 为 true；新请求 settle 后 false；旧请求晚到被弃仍为 false', async () => {
+    const slowA = deferred<TrackRow[]>()
+    const fastB = deferred<TrackRow[]>()
+    const queue = [slowA.promise, fastB.promise]
+    installApi(() => queue.shift() ?? Promise.resolve([]))
+
+    const rA = useLibraryStore.getState().refresh()
+    expect(useLibraryStore.getState().loading).toBe(true) // in-flight（A）
+
+    const rB = useLibraryStore.getState().refresh()
+    expect(useLibraryStore.getState().loading).toBe(true) // in-flight（A 仍在飞，B 新发）
+
+    fastB.resolve([makeTrack('new')])
+    await rB
+    expect(useLibraryStore.getState().loading).toBe(false) // 新请求 settle 收尾
+
+    slowA.reject(new Error('late-failure'))
+    await rA
+    expect(useLibraryStore.getState().loading).toBe(false) // 被弃的旧请求不改动 loading
+  })
+
+  it('并发保护（反向）：旧请求晚到结算时新请求仍在飞 → 不得清 loading', async () => {
+    const slowA = deferred<TrackRow[]>()
+    const slowB = deferred<TrackRow[]>()
+    const queue = [slowA.promise, slowB.promise]
+    installApi(() => queue.shift() ?? Promise.resolve([]))
+
+    const rA = useLibraryStore.getState().refresh() // seq=1
+    const rB = useLibraryStore.getState().refresh() // seq=2，仍在飞
+    expect(useLibraryStore.getState().loading).toBe(true)
+
+    slowA.reject(new Error('late-failure')) // 旧请求失败晚到，新请求未 settle
+    await rA
+    // 守护 catch 序号守卫：旧请求不得把新请求的 in-flight loading 误清为 false
+    expect(useLibraryStore.getState().loading).toBe(true)
+    expect(useLibraryStore.getState().error).toBeNull()
+
+    slowB.resolve([makeTrack('new')])
+    await rB
+    expect(useLibraryStore.getState().loading).toBe(false)
+    expect(ids()).toEqual(['new'])
   })
 
   it('失败路径：api reject → error 置为消息、不抛、loading 收尾、保留旧 songs', async () => {

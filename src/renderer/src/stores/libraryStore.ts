@@ -9,6 +9,9 @@
 //     本任务无专辑/艺术家页消费者，缓存即无消费者的状态（各页 T4.4 起自取）。
 //   · 分页/排序参数收口于 params：{ sortBy, order, offset, limit }（SortKey 白名单 7 键）。
 //   · refresh() 并发保护用「请求序号」（见下）；失败不抛到渲染层，转 error 状态（toErrorMessage）。
+//   · setSort/setPage 在 set 参数后**自动 refresh**（同 i18n `setLanguage` 内部 void loadMessages 的先例）：
+//     排序/翻页是离散用户动作，调用方无需（也不应）再手动 refresh——消除「忘 refresh → UI 静默不动」
+//     的静默失效。取数仍可脱离 setter 单独经 refresh() 触发（参数设置与取数各自可用）。
 //   · scan:progress done → 自动 refresh：模块级幂等订阅（同 i18n ensureLoaded 模式），
 //     renderer bundle 长驻，订阅一次不解除（生命周期见 ensureScanProgressSubscription 注释）。
 import { useSyncExternalStore } from 'react';
@@ -68,9 +71,9 @@ export interface LibraryState {
   params: LibraryParams;
   /** 按当前 params 重新拉取 listSongs 并 set；失败写入 error，不 reject。 */
   refresh: () => Promise<void>;
-  /** 设置排序（sortBy/order 白名单）；offset 归零。不自动 refresh（由调用方显式触发）。 */
+  /** 设置排序（sortBy/order 白名单）；offset 归零；随后自动 refresh()（同 i18n setLanguage 先例）。 */
   setSort: (sortBy: SortKey, order: SortOrder) => void;
-  /** 设置分页；不自动 refresh（由调用方显式触发）。 */
+  /** 设置分页；随后自动 refresh()（同 setSort）。 */
   setPage: (offset: number, limit: number) => void;
 }
 
@@ -110,10 +113,14 @@ export const useLibraryStore = create<LibraryState>((set) => ({
 
   setSort: (sortBy, order) => {
     set((s) => ({ params: { ...s.params, sortBy, order, offset: 0 } }));
+    // 自动重取（留痕：不 debounce——排序是离散动作；连续 setSort+setPage 会发两次请求，
+    // 但序号守卫保证只有最后一次生效，多出的一次 IPC 罕见且无害，故不合并/不抽批量设参 API）。
+    void useLibraryStore.getState().refresh();
   },
 
   setPage: (offset, limit) => {
     set((s) => ({ params: { ...s.params, offset, limit } }));
+    void useLibraryStore.getState().refresh();
   },
 }));
 
