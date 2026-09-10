@@ -197,7 +197,7 @@ describe('trackRepo', () => {
     repo.createMany([
       track({ id: 'u', title: 'Alpha Old', artistString: 'Feat X', albumTitle: 'Album A' }),
     ]);
-    // 仅更新 year / composer（不在触发器 AFTER UPDATE OF 列清单内，避免触发损坏的 FTS 触发器）。
+    // 仅更新 year / composer（不在触发器 AFTER UPDATE OF 列清单内，避免触发 FTS AFTER UPDATE 触发器）。
     repo.updateAfterParse('u', { year: 2024, composer: 'Composer Z' });
 
     const r = repo.findById('u')!;
@@ -253,4 +253,54 @@ describe('trackRepo', () => {
       .file_path;
     expect(p).toBe('/new/fp.flac');
   });
+
+  it('listByIds 在 >1000 ids（2000）下分批不抛 too many SQL variables 且条数一致', () => {
+    current = setup();
+    const { repo } = current;
+    const ids = Array.from({ length: 2000 }, (_, i) => `lb-${i}`);
+    repo.createMany(ids.map((id, i) => track({ id, title: `T${i}` })));
+    const rows = repo.listByIds(ids);
+    expect(rows.length).toBe(2000);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(2000); // 无重复、无遗漏
+  });
+
+  it('setStatus 在 >1000 ids（2000）下分批不抛 too many SQL variables 且生效', () => {
+    current = setup();
+    const { repo, db } = current;
+    const ids = Array.from({ length: 2000 }, (_, i) => `st-${i}`);
+    repo.createMany(ids.map((id, i) => track({ id, title: `T${i}` })));
+    repo.setStatus(ids, 'ignored');
+    const statusOf = (id: string) =>
+      (db.prepare(`SELECT status FROM tracks WHERE id = ?`).get(id) as { status: string }).status;
+    expect(statusOf('st-0')).toBe('ignored');
+    expect(statusOf('st-1000')).toBe('ignored'); // 跨批抽查
+    expect(statusOf('st-1999')).toBe('ignored');
+  });
+
+  it('markMissing 在 >32766 except 路径（33000）下用临时表不抛 too many SQL variables', () => {
+    current = setup();
+    const { repo, db } = current;
+    // 4 条真实曲目：2 条放入 except（保持 available），2 条不放入（应被置 missing）。
+    const keep = ['mk-keep1', 'mk-keep2'];
+    const drop = ['mk-drop1', 'mk-drop2'];
+    const seeds: TrackInsert[] = [
+      ...keep.map((id) => track({ id, title: id, filePath: `/mk/${id}.flac`, fileName: `${id}.flac` })),
+      ...drop.map((id) => track({ id, title: id, filePath: `/mk/${id}.flac`, fileName: `${id}.flac` })),
+    ];
+    repo.createMany(seeds);
+    // except 集合：33000 条（含真实 keep 路径 + 大量不存在路径），混合大小写也走 lower()。
+    const bogus = Array.from({ length: 33000 - keep.length }, (_, i) => `/nonexistent/${i}.flac`);
+    const exceptPathsLower = [
+      ...keep.map((id) => `/mk/${id}.flac`.toLowerCase()),
+      ...bogus.map((p) => p.toLowerCase()),
+    ];
+    repo.markMissing(exceptPathsLower);
+    const statusOf = (id: string) =>
+      (db.prepare(`SELECT status FROM tracks WHERE id = ?`).get(id) as { status: string }).status;
+    expect(statusOf('mk-keep1')).toBe('available'); // 在 except 内
+    expect(statusOf('mk-keep2')).toBe('available'); // 在 except 内
+    expect(statusOf('mk-drop1')).toBe('missing'); // 在 except 外
+    expect(statusOf('mk-drop2')).toBe('missing'); // 在 except 外
+  });
+
 });

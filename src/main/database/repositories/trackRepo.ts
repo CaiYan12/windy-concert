@@ -131,6 +131,12 @@ const AFTER_PARSE_MAP: Array<[keyof TrackParseUpdate, string, (v: unknown) => un
 
 const VALID_STATUSES: ReadonlySet<string> = new Set(['available', 'missing', 'ignored']);
 
+// SQLite 单条语句 IN / NOT IN 的占位符上限实测为 SQLITE_MAX_VARIABLE_NUMBER（32766）。
+// 30k 曲库全量重扫时 markMissing 的 except 路径约 30000、setStatus/listByIds 的批量 ids
+// 也可能破万，逼近上限（仅 ~9% 余量），超限即抛 "too many SQL variables"。
+// 故 IN 列表按批拆分（正向 IN 可分批组合），NOT IN 不可分批——改用临时表（见 markMissing）。
+const IN_BATCH = 500;
+
 // ---------------------------------------------------------------------------
 // SELECT 基底（含 artists JOIN 取 artistName）——TrackRow 收口映射点。
 // ---------------------------------------------------------------------------
@@ -360,15 +366,21 @@ export function createTrackRepo(db: Database): TrackRepo {
       throw new Error(`trackRepo.setStatus: 非法 status "${status}"`);
     }
     if (ids.length === 0) return;
-    const stmt = db.prepare(`
-      UPDATE tracks SET status = ? WHERE id IN (${inPlaceholders(ids.length)})
-    `);
-    stmt.run(status, ...ids);
+    // IN 列表按批拆分（每批 ≤ IN_BATCH）：正向 IN 语义可分批组合，多条 UPDATE 等价。
+    const tx = db.transaction(() => {
+      for (let i = 0; i < ids.length; i += IN_BATCH) {
+        const chunk = ids.slice(i, i + IN_BATCH);
+        const stmt = db.prepare(`
+          UPDATE tracks SET status = ? WHERE id IN (${inPlaceholders(chunk.length)})
+        `);
+        stmt.run(status, ...chunk);
+      }
+    });
+    tx();
   }
 
   function markMissing(exceptPathsLower: string[]): void {
-    // UPDATE tracks SET status='missing'
-    //   WHERE status='available' AND lower(file_path) NOT IN (...)
+    // 退化路径：空 except → 全部 available 变 missing（保留既有语义，不依赖临时表）。
     if (exceptPathsLower.length === 0) {
       const stmt = db.prepare(`
         UPDATE tracks SET status = 'missing' WHERE status = 'available'
@@ -376,13 +388,34 @@ export function createTrackRepo(db: Database): TrackRepo {
       stmt.run();
       return;
     }
-    const stmt = db.prepare(`
-      UPDATE tracks
-      SET status = 'missing'
-      WHERE status = 'available'
-        AND lower(file_path) NOT IN (${inPlaceholders(exceptPathsLower.length)})
-    `);
-    stmt.run(...exceptPathsLower.map((p) => p));
+    // NOT IN 语义不可分批改写：若按 [500, 500, ...] 逐批执行 UPDATE，首批会把
+    // 后续批仍在该批 except 集合内的路径提前误标 missing。故改用临时表——
+    //   1) CREATE TEMP TABLE IF NOT EXISTS（跨调用复用同连接时需先 DELETE 清残留）
+    //   2) 分批 INSERT OR IGNORE except 路径（PRIMARY KEY 去重，抗重复项）
+    //   3) 单条 UPDATE ... NOT IN (SELECT path FROM <temp>) 完成标记
+    //   4) DROP 回收临时表
+    // 临时表生命周期严格限定在本事务内，避免污染连接状态。
+    const tx = db.transaction(() => {
+      db.prepare(`
+        CREATE TEMP TABLE IF NOT EXISTS _wc_mark_missing_paths (path TEXT PRIMARY KEY)
+      `).run();
+      db.prepare(`DELETE FROM _wc_mark_missing_paths`).run();
+      for (let i = 0; i < exceptPathsLower.length; i += IN_BATCH) {
+        const chunk = exceptPathsLower.slice(i, i + IN_BATCH);
+        const placeholders = chunk.map(() => '(?)').join(', ');
+        db.prepare(
+          `INSERT OR IGNORE INTO _wc_mark_missing_paths (path) VALUES ${placeholders}`,
+        ).run(...chunk);
+      }
+      db.prepare(`
+        UPDATE tracks
+        SET status = 'missing'
+        WHERE status = 'available'
+          AND lower(file_path) NOT IN (SELECT path FROM _wc_mark_missing_paths)
+      `).run();
+      db.prepare(`DROP TABLE _wc_mark_missing_paths`).run();
+    });
+    tx();
   }
 
   function findByFileIdentity(
@@ -392,6 +425,10 @@ export function createTrackRepo(db: Database): TrackRepo {
     opts?: FindByIdentityOpts,
   ): TrackRow | null {
     if (opts?.status !== undefined) {
+      // 与 setStatus 一致的防御面：status 值经白名单守卫，避免注入非法过滤值。
+      if (!VALID_STATUSES.has(opts.status)) {
+        throw new Error(`trackRepo.findByFileIdentity: 非法 status "${opts.status}"`);
+      }
       const stmt = db.prepare(`
         ${SELECT_FROM}
         WHERE tracks.file_name = ?
@@ -423,11 +460,17 @@ export function createTrackRepo(db: Database): TrackRepo {
 
   function listByIds(ids: string[]): TrackRow[] {
     if (ids.length === 0) return [];
-    const stmt = db.prepare(`
-      ${SELECT_FROM} WHERE tracks.id IN (${inPlaceholders(ids.length)})
-    `);
-    const rows = stmt.all(...ids) as RawTrackRow[];
-    return rows.map(mapRow);
+    // IN 列表按批拆分（每批 ≤ IN_BATCH）：各批结果拼接返回，规避参数上限。
+    const out: TrackRow[] = [];
+    for (let i = 0; i < ids.length; i += IN_BATCH) {
+      const chunk = ids.slice(i, i + IN_BATCH);
+      const stmt = db.prepare(`
+        ${SELECT_FROM} WHERE tracks.id IN (${inPlaceholders(chunk.length)})
+      `);
+      const rows = stmt.all(...chunk) as RawTrackRow[];
+      out.push(...rows.map(mapRow));
+    }
+    return out;
   }
 
   return {
