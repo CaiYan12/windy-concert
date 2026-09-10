@@ -792,7 +792,8 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
   - F2-3：无标签文件 title=文件名去扩展名；
   - F2-4：仅 cover.jpg 目录的专辑获得 folder 来源封面。
   > 执行备注(2026-09-10): tests/unit/library/scan.e2e.test.ts 13 用例（真集成：RealLogicWorkerAdapter 注入 workerFactory 直驱真 walkFiles/parseFiles + 真 music-metadata + 真 sharp + wireCoverPipeline；scanner.worker 做最小导出重构 walkFiles/parseFiles 纯函数化，入口行为零变化）。九场景全绿 + 两用例强化：策略 1 正向（移出→missing→移入→adopt 三步流）+ 反向（改名失配→新 UUID+旧行 missing）。**计划语义缺口（用户裁定 V1.5）**：adopt 仅匹配 missing 行 + missing 标记在分类后 ⇒ 单次重扫的移动生成新 UUID 丢播放计数——markMissing 前置修复（commit 91b7a9f，复制场景无振荡实证），T2.6 补「单次移动保 id」「复制不挤占」两用例。F1-7 如实留痕：b) 目录冒充音频文件被 walk isDirectory 分支拦截（真实链路不可达 EISDIR），等效失败在 parseFiles 纯函数层复现；c) Node/libuv 无法造真独占句柄（FILE_SHARE默认全开），以 a/b 两条覆盖容错语义。F2-1 断言含 meta_provenance 全 embedded 与封面三档真实生成。**测试环境**：vitest.config.ts 顶部禁用 safe-delete shim（>50 项批量删除保护致清理 ENOTEMPTY 假失败，commit 随 91b7a9f 系列），vitest #10692 需大写盘符 cwd。89 tests 全绿（13 文件）。
-- [ ] **T2.7 样本库生成脚本**：`scripts/gen-sample-library.mjs`（附录 B），支持 `--count 30000 --out <dir>`。
+- [x] **T2.7 样本库生成脚本**：`scripts/gen-sample-library.mjs`（附录 B），支持 `--count 30000 --out <dir>`。
+  > 执行备注(2026-09-10): 附录 B 契约逐条落地（10 艺术家均分+余数摊派、每艺术家 min(5,tracks) 专辑、全局 i 奇偶交替命名、i%50===1 标签版——flac 槽标签分支为计数方案固有死分支已注释留痕、statfsSync 磁盘检查 max(2GB, 均摊×1.1)、非空拒绝+--force、总数自校验）；同步复制 copyFileSync 非 await 串行（30k 量级 10-30s SSD）。自证：count=300/60/30/51 四轮字节核算逐一吻合、50 阈值边界实证、非空拒绝与 --force 实证。质量审查 APPROVED（Minor：dirCount 漏计艺术家目录、复制失败无半成品提示——体验级留档）。附录 B 适配点四处留痕（07 路径 album2/ 子目录、07 最小标签口径、flac 槽标签版、专辑数自定）。
 
 **预期产出**：完整「目录 → 入库 → 封面就绪」管道 + 30k 性能样本能力。
 
