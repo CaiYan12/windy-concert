@@ -52,6 +52,14 @@ export interface ParsedTrack {
   channels: number | null;
   picture: ParsedPicture | null;
   tags: { title: boolean; artist: boolean; album: boolean; albumArtist: boolean };
+  // V1.3 评审补齐 F2-1 全字段：三格式 fixture 全字段断言的前置透传
+  trackNumber?: number | null;
+  discNumber?: number | null;
+  year?: number | null;
+  genre?: string | null;
+  composer?: string | null;
+  comment?: string | null;
+  codec?: string | null;
 }
 
 /** 主进程→worker。 */
@@ -192,6 +200,15 @@ async function parseOne(file: StatFile): Promise<ParsedTrack | null> {
       album: common.album != null,
       albumArtist: common.albumartist != null,
     },
+    // V1.3 评审补齐 F2-1 全字段（music-metadata 11.15.0 实际形态：comment 元素为 IComment{text}，
+    // disc 字段名为 disk；track/disk 为必有对象故 ?? null 仅兜 no 值）
+    trackNumber: common.track?.no ?? null,
+    discNumber: common.disk?.no ?? null,
+    year: common.year ?? null,
+    genre: common.genre?.[0] ?? null,
+    composer: common.composer?.[0] ?? null,
+    comment: common.comment?.[0]?.text ?? null,
+    codec: format.codec ?? null,
   };
 }
 

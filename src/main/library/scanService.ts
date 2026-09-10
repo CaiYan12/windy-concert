@@ -13,8 +13,8 @@
 //     全量 rescanAll 的差异化语义归 T3（library:rescanAll 契约，计划 §3.6）。
 //   - scan 进行中重复调用：返回进行中的同一 Promise（不抛错，留痕选择）。
 //   - TrackInsert 写库复用 createMany([t])（未新增 insertOne）。
-//   - worker 实际交付的 ParsedTrack（读文件核实）不含 trackNumber/discNumber/year/genre/
-//     composer/comment/codec，这些列在 create/changed 写库时置 NULL（留痕，与计划描述的差异）。
+//   - V1.3 评审补齐（F2-1 前置）：worker ParsedTrack 已补 trackNumber/discNumber/year/genre/
+//     composer/comment/codec 七字段，create/changed 写库透传（废止原「置 NULL」留痕）。
 //   - onCoverJob 按 track 粒度投递：同专辑去重与 folder 候选探测归 T2.4；未注入则丢弃并计数（留痕）。
 //   - onProgress 为 scan:progress 事件的进程内发射点，IPC webContents 接线在 T3（留痕）。
 //   - src/main/index.ts 的启动接线（settings store 未建）推迟到 T3，本任务只暴露 startupScan()。
@@ -179,6 +179,13 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
         sampleRate: parsedTrack.sampleRate,
         bitDepth: parsedTrack.bitDepth,
         channels: parsedTrack.channels,
+        trackNumber: parsedTrack.trackNumber,
+        discNumber: parsedTrack.discNumber,
+        year: parsedTrack.year,
+        genre: parsedTrack.genre,
+        composer: parsedTrack.composer,
+        comment: parsedTrack.comment,
+        codec: parsedTrack.codec,
         playable,
       });
       trackRepo.updateFileIdentity(changedId, {
@@ -186,7 +193,7 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
         fileMtime: statEntry.mtime,
       });
     } else {
-      // create：新 UUID（策略 1）。worker 未解析的列（trackNumber/year/genre/...）置 NULL（留痕）。
+      // create：新 UUID（策略 1）。V1.3 评审补齐 F2-1 全字段：7 键透传（原置 NULL 留痕已废止）。
       const insert: TrackInsert = {
         id: randomUUID(),
         title: parsedTrack.title,
@@ -196,6 +203,13 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
         albumArtist: parsedTrack.albumArtist,
         albumTitle: parsedTrack.album,
         duration: parsedTrack.duration,
+        trackNumber: parsedTrack.trackNumber,
+        discNumber: parsedTrack.discNumber,
+        year: parsedTrack.year,
+        genre: parsedTrack.genre,
+        composer: parsedTrack.composer,
+        comment: parsedTrack.comment,
+        codec: parsedTrack.codec,
         filePath: statEntry.path,
         fileName: path.basename(statEntry.path),
         fileSize: statEntry.size,
