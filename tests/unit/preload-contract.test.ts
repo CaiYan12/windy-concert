@@ -101,6 +101,40 @@ describe('window.api 契约类型锁（expectTypeOf）', () => {
     expect(true).toBe(true)
   })
 
+  it('分组键存在性锁（防方法删除/改名漂移——评审建议）', () => {
+    expectTypeOf<keyof Api['library']>().toEqualTypeOf<
+      | 'addFolder'
+      | 'removeFolder'
+      | 'setFolderEnabled'
+      | 'scan'
+      | 'rescanAll'
+      | 'listSongs'
+      | 'getTrack'
+      | 'listAlbums'
+      | 'getAlbum'
+      | 'listArtists'
+      | 'getArtist'
+      | 'search'
+    >()
+    expectTypeOf<keyof Api['favorites']>().toEqualTypeOf<'set' | 'list'>()
+    expectTypeOf<keyof Api['playlists']>().toEqualTypeOf<
+      | 'list'
+      | 'get'
+      | 'create'
+      | 'rename'
+      | 'delete'
+      | 'addTracks'
+      | 'removeTrack'
+      | 'reorder'
+    >()
+    expectTypeOf<keyof Api['history']>().toEqualTypeOf<
+      'recordPlay' | 'updatePlayOutcome' | 'listRecent'
+    >()
+    expectTypeOf<keyof Api['settings']>().toEqualTypeOf<'get' | 'set'>()
+    expectTypeOf<keyof Api['i18n']>().toEqualTypeOf<'getMessages'>()
+    expect(true).toBe(true)
+  })
+
   it('search 返回结构与 TrackRow 的归属关系（toMatchTypeOf 抽查）', () => {
     expectTypeOf<SearchResult>().toMatchTypeOf<{ tracks: TrackRow[] }>()
     expectTypeOf<Api>().not.toBeAny()
