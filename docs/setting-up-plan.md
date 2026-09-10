@@ -4,9 +4,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 计划版本 | V1.2 |
-| 日期 | 2026-09-09 |
-| 修订记录 | V1.0 初版；V1.1 发布形态改 build\ 绿色目录 + zip（build.bat / start.bat，NSIS 后置）；V1.2 设计案已交付验收（docs/design-handoff.md），renderer 实施基线锁定为 docs/design/tokens.css + mockups/，Phase 4~7 任务挂接设计稿，图标策略改为本地 vendored lucide-static@1.43.0 |
+| 计划版本 | V1.3 |
+| 日期 | 2026-09-10 |
+| 修订记录 | V1.0 初版；V1.1 发布形态改 build\ 绿色目录 + zip（build.bat / start.bat，NSIS 后置）；V1.2 设计案已交付验收（docs/design-handoff.md），renderer 实施基线锁定为 docs/design/tokens.css + mockups/，Phase 4~7 任务挂接设计稿，图标策略改为本地 vendored lucide-static@1.43.0；V1.3（2026-09-10，grill 会话三项裁定 + 工作流约定）：① §4.2 AGENTS.md 只读边界按该文件自身声明校正（# Project Info 以上固定只读，其下 windy-concert 区按阶段收尾约定更新）；② T1.6 trigram 措辞按实测行为修正（trigram 下限 3 字符，<3 由 §3.5d LIKE 回退兜底）；③ Phase 2 开工清单升格正文：T1.2 findByFileIdentity 改返回 TrackRow[]（唯一命中才 adopt，0 或 ≥2 按 create）、listSongs 追加 tracks.id 次级排序键、T1.4 listRecent 改 MAX(id)（原 MAX(played_at) 秒级同曲同秒会并列出重复行）；④ §5 提交纪律补阶段提交门控（状态更新后暂不提交，待用户提议代码审查完毕后统一提交） |
 | 上游唯一输入 | docs/finale-analysis.md（需求终稿 V2.0，23 项决策已确认） |
 | 本计划目标 | 从零建立工程，交付 0.1.0（M0.1「可日常使用的本地播放器」） |
 | 配套文档 | CONTEXT.md（领域术语表）、docs/adr/0001~0003、docs/design-plan.md + docs/design/（已验收设计基线）、docs/design-handoff.md |
@@ -663,7 +663,8 @@ electron-builder.yml（要点）：`appId: cn.windyconcert.app`、`productName: 
 
 | 区域 | 禁令 |
 |---|---|
-| docs/finale-analysis.md、primalreport.md、CONTEXT.md、AGENTS.md、docs/adr/** | 只读。需求与决策变更另行走文档修订流程，不在本计划内 |
+| docs/finale-analysis.md、primalreport.md、CONTEXT.md、docs/adr/** | 只读。需求与决策变更另行走文档修订流程，不在本计划内 |
+| AGENTS.md | **# Project Info 以上固定区只读**；其下 windy-concert 区按阶段收尾约定更新（该文件自身已声明，V1.3 校正——原「只读」措辞过于笼统） |
 | **docs/design/**（tokens.css、mockups/、icons.md、notes.md、design-handoff.md） | 已验收的设计基线，实施期**只读**；tokens 演进与视觉偏离经 `notes.md` 追加记录 + 在会话中提请修订，不得直接改源文件 |
 | .workbuddy/**、.git/** | 禁改；禁止 rebase/force 改写历史；不建分支（除非用户点名） |
 | node_modules/**、out/**、release/**、build/**、userData 运行时产物 | 禁止手工修改（构建产物） |
@@ -686,7 +687,7 @@ electron-builder.yml（要点）：`appId: cn.windyconcert.app`、`productName: 
 
 ## 5. 实施阶段（正文主体）
 
-> 每阶段结构固定：阶段名称 / 关键任务 / 具体技术实现（checkbox 步骤）/ 预期产出 / 验收标准。提交纪律：每个任务（T 编号）完成后一次 commit，message 用 `feat|test|chore|docs(scope): 描述`；阶段全部验收通过后推送远端（AGENTS Git Rule）。
+> 每阶段结构固定：阶段名称 / 关键任务 / 具体技术实现（checkbox 步骤）/ 预期产出 / 验收标准。提交纪律：每个任务（T 编号）完成后一次 commit，message 用 `feat|test|chore|docs(scope): 描述`；阶段全部验收通过后推送远端（AGENTS Git Rule）。**V1.3 阶段收尾与提交门控（2026-09-10 用户拍板）**：每阶段完成后更新三处状态文档（工作区记忆 / AGENTS.md Project Status / README.md 遗留段）后**暂不 commit/push**，待用户提议代码审查且审查完毕后再统一提交；subagent 统一用 GLM 5.3 Flash，遇 429 直接打断询问用户换何种模型。
 
 ### Phase 0｜工程脚手架与基线（预计 0.5 天）
 
@@ -728,17 +729,17 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
 - [x] **T1.1 连接与迁移**：`src/main/database/connection.ts`（§3.4 迁移器代码）+ `migrations/0001_init.ts`（§3.4 全部 DDL）+ `migrations/index.ts`。单测 `tests/unit/db/migrations.test.ts`：① `:memory:` 打开即 user_version=1；② 重复打开幂等；③ `SELECT sqlite_version()` ≥3.34（trigram 可用性守卫）。
   > 执行备注(2026-09-10): connection.ts 与 0001_init.ts 均逐字（spec 审查：8 表 7 索引 3 触发器 + FTS trigram 虚表计数核对全中，关键约束抽查通过）；migrations/index.ts 导出 `migrations` 数组 + 最小 `interface Migration { up: string }`；新增 devDep @types/better-sqlite3 ^9.6.0（§4.1 类型包授权，唯一依赖新增，npm view 实测）；三条单测通过（sqlite_version 3.53.4，数值化比较规避字符串比较 bug）；better-sqlite3 在 node 下加载正常无 ABI 问题；typecheck 0 错误；质量审查 APPROVED（Minor：@types 落后运行时 4 个大版本，当前 API 无实际类型风险，预防性维护项留档）。
   > 执行备注(2026-09-10): 补记——T1.2 期间发现本任务交付的 0001_init.ts 中 tracks_fts_ad/au 触发器存在计划缺陷：'delete' 特殊 INSERT 仅适用于 contentless/external-content fts5 表，普通 fts5 表运行时抛 SQL logic error（主会话 node 实验独立复现，并验证标准 DELETE FROM 行为正确）；经用户批准修正为 `DELETE FROM tracks_fts WHERE rowid = old.rowid;`（commit 1def31f，仅触及上述语句，其余 DDL 逐字不变），计划正文按纪律保持原文、以本备注留痕。
-- [x] **T1.2 trackRepo**：`createMany(tracks)`（事务批量 prepared insert）、`listSongs({sortBy, order, offset, limit})`（排序键白名单映射见 §3.7，防注入：键必须命中 Map 否则抛错）、`findById`、`updateAfterParse(id, parsed)`、`updateFileIdentity(id, {filePath})`、`setStatus(ids, status)`、`markMissing(exceptPathsLower)`、`findByFileIdentity(fileName, size, mtime)`（move 检测，附加 `AND status='missing'` 条件在 service 层）、`setFavorite(id, favorite)`（同步写 favorited_at）、`incrementPlay(id)`、`listByIds(ids)`。
+- [x] **T1.2 trackRepo**：`createMany(tracks)`（事务批量 prepared insert）、`listSongs({sortBy, order, offset, limit})`（排序键白名单映射见 §3.7，防注入：键必须命中 Map 否则抛错；V1.3 起排序追加 `tracks.id` 次级键，保证重复键下 offset 分页稳定）、`findById`、`updateAfterParse(id, parsed)`、`updateFileIdentity(id, {filePath})`、`setStatus(ids, status)`、`markMissing(exceptPathsLower)`、`findByFileIdentity(fileName, size, mtime)`（move 检测，附加 `AND status='missing'` 条件在 service 层；V1.3 起返回 `TrackRow[]` 全部命中——唯一命中才 adopt，0 或 ≥2 均按 create，§3.5a 歧义宁可新建）、`setFavorite(id, favorite)`（同步写 favorited_at）、`incrementPlay(id)`、`listByIds(ids)`。
   > 执行备注(2026-09-10): 11 方法按规格交付（工厂函数 + prepared statements；findByFileIdentity 的 status 过滤参数化留痕——SQL 收口 repo、条件决策 service 两措辞同时满足；updateAfterParse 固定白名单 Map 生成 SET、值全 bind 留痕）；14 用例先行全绿。期间发现并经用户批准修正计划 §3.4 FTS 触发器缺陷（详见 T1.1 补记，commit 1def31f），FTS 同步断言解锁。质量审查 NEEDS_FIXES → 修复 IN 列表 32766 参数上限：setStatus/listByIds 按 500 分批、markMissing 改临时表 _wc_mark_missing_paths（NOT IN 语义不可分批，事务覆盖临时表全生命周期）、findByFileIdentity status 补守卫、+3 条大列表回归用例（commit 0e6426a），复审 APPROVED。终态 npm test 21 passed / 0 skipped、typecheck 0 错误。
 - [x] **T1.3 artistRepo / albumRepo**：`upsertArtist(name) → id`（`INSERT ... ON CONFLICT(name) DO NOTHING` + SELECT）、`upsertAlbum(title, artistId)`；`recountStats()`（扫描后重算 counts 的两条 UPDATE，§3.5a 阶段 D）；`listAlbums` / `getAlbumWithTracks`（`ORDER BY disc_number, track_number`）/ `listArtists` / `getArtistOverview`。
   > 执行备注(2026-09-10): 7 方法按规格交付（recountStats 归入 albumRepo 单一入口，事务包裹；disc_count=COUNT(DISTINCT disc_number) WHERE NOT NULL、album_count=COUNT(DISTINCT album_id) FROM tracks、仅重算 count 列、listAlbums year DESC NULL 垫底+title ASC、listArtists name ASC——均留痕）；rowMapper.ts 提取 TrackRow 映射单一收口，trackRepo.ts 仅导入级最小 diff（spec 审查逐行核验 SQL 与行为零变化）；AlbumDetail/ArtistDetail 自定类型留痕。10 新单测，npm test 31 passed 零回归、typecheck 0 错误。质量审查 APPROVED（留档 follow-up：getAlbumWithTracks 的 disc_number NULL 排序依赖 SQLite 默认 NULLS-FIRST，与 listAlbums 的显式垫底约定不一致，因计划原文即 `ORDER BY disc_number, track_number` 未改码，Phase 4 消费时若需统一再提请）。
-- [x] **T1.4 playlistRepo / historyRepo / folderRepo / coverRepo**：playlistRepo：`create/rename/delete/list/get(addTracks/removeTrack)`、`reorder(id, trackIds)`（事务内 DELETE+批量 INSERT，§3.4 注释）；historyRepo：`recordPlay(trackId)`（INSERT + tracks 侧 UPDATE 同事务）→ 返回 historyId、`updateOutcome(historyId, {playedDuration, completed})`、`listRecent(limit)`（§2 口径去重 SQL：子查询 `MAX(played_at)` GROUP BY track_id 再 JOIN）；folderRepo：`add/remove/setEnabled/list`（path 规范化：小写盘符 + 去尾部 `\\`）；coverRepo：`insertCover` / `setAlbumCover(albumId, coverId)`。
+- [x] **T1.4 playlistRepo / historyRepo / folderRepo / coverRepo**：playlistRepo：`create/rename/delete/list/get(addTracks/removeTrack)`、`reorder(id, trackIds)`（事务内 DELETE+批量 INSERT，§3.4 注释）；historyRepo：`recordPlay(trackId)`（INSERT + tracks 侧 UPDATE 同事务）→ 返回 historyId、`updateOutcome(historyId, {playedDuration, completed})`、`listRecent(limit)`（§2 口径去重 SQL：V1.3 起子查询 `MAX(id)` GROUP BY track_id 再 JOIN——原 MAX(played_at) 在 datetime('now') 秒级粒度下同曲同秒两次播放会并列出重复行，违反 F7-2）；folderRepo：`add/remove/setEnabled/list`（path 规范化：小写盘符 + 去尾部 `\\`）；coverRepo：`insertCover` / `setAlbumCover(albumId, coverId)`。
   > 执行备注(2026-09-10): 四 repo 交付（playlistRepo PlaylistRow / folderRepo FolderRow 自定类型留痕；removeTrack 删最小 position 一次出现、留洞语义自洽留痕；historyRepo tracks 侧 UPDATE 收口自身 prepared 留痕；normalizePath 内部函数）。listRecent 按计划原文 MAX(played_at) 实现，秒级并列边界注释留痕（质量审查 I1：同曲同秒两次播放会出重复行，Phase 2 改 MAX(id)/tiebreak 必修——延后决策已留痕）。15 新单测，npm test 46 passed 零回归、typecheck 0 错误。质量审查 APPROVED（Minor 跟进项留档：UNC 主机段大小写归一、根路径 C:\→c: 语义、空串无校验、folder 测试断言 2/4 形态、addTracks FK 报错信息、reorder([]) 无守卫——收尾时记入 README 遗留段）。
 - [x] **T1.5 shared 类型**：`src/shared/types.ts` 写全 §3.6 列出的 TrackRow/AlbumCard/ArtistCard/Settings/ScanProgress/搜索结果类型。
   > 执行备注(2026-09-10): 本任务提前至 T1.2 前执行（T1.2~T1.4 的 repo 返回类型依赖 TrackRow，先立契约避免类型空窗与返工；范围不变仅顺序调整，留痕）。四接口逐字 + ScanProgress/CoversReady/SearchResult/PlaylistSummary/SortKey/SortOrder；PlaylistSummary { id; name; trackCount } 为计划未定义形状的最小合理决定（搜索下拉所需，注释留痕）；@shared 别名接线：electron.vite.config.ts renderer 段 + tsconfig.web.json paths（baseUrl 实测为 "."，基准 src/shared/*，纠正了派发指令中的 "../../" 臆测）+ tsconfig.node.json include 补 src/shared；main/preload 侧无别名，以相对路径引入 shared（质量审查 Minor 留档）；typecheck 0 错误，npm test 4 passed 无回归；质量审查 APPROVED（TrackRow 为 §3.6 节选定稿，DDL 其余列如 composer/codec/channels 留待消费方扩展时补）。
 - [x] **T1.6 查询单测**（`tests/unit/db/*.test.ts`，全部用 `:memory:` 库 + 手工 INSERT 造数）：
   - FTS 触发器：INSERT/UPDATE title/DELETE 后 `tracks_fts` 行数与内容同步；
-  - trigram：中文「七里」命中「七里香」、英文大小写不敏感；
+  - trigram：中文 3 字符子串命中（trigram 分词器下限 3 字符，「七里」2 字符 MATCH 返回 0 行——<3 由 §3.5d 回退 LIKE 兜底；V1.3 按实测行为修正措辞）、英文大小写不敏感；
   - 短查询回退路径的 LIKE 行为；
   - 专辑唯一约束：同名不同 albumArtist → 两个 album；同 albumArtist 同名 → 冲突合并；
   - `listRecent` 去重：同曲目两次播放只返回最新一条；

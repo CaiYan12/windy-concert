@@ -44,7 +44,7 @@ npm run dist       # 生产构建 + electron-builder --win dir
 - `historyRepo.listRecent` 按计划原文用 `MAX(played_at)` 去重，秒级粒度下同曲同秒两次播放会产生重复行（改 `MAX(id)` 或 played_at+id tiebreak）。→ **建议时机：Phase 2 开工清单 ②（必修）**
 - `trackRepo.findByFileIdentity` 返回 `TrackRow | null`，多命中时静默取首行——无法表达 §3.5a adopt 所需「唯一命中」判定。→ **建议时机：Phase 2 开工清单 ①**（改多命中语义并补用例）
 - `trackRepo.listSongs` 排序无 tiebreaker，重复键（如 playCount=0）下 offset 分页会跨页重复/丢行（追加 `, tracks.id` 次级排序键并补分页用例）。→ **建议时机：Phase 2 开工清单 ③**（第三方评审新增发现）
-- 计划文档矛盾待修订：§4.2「AGENTS.md 只读」与阶段收尾约定「每阶段更新本文件 Project Status」（Phase 0 用户拍板）冲突——需计划所有者裁决如何修订正文；T1.6 任务文「七里命中七里香」措辞与 §3.5d trigram 3 字符下限矛盾，宜顺带修正。→ **建议时机：Phase 2 开工前（用户裁决）**
+- 计划文档矛盾（§4.2「AGENTS.md 只读」vs 阶段收尾约定；T1.6「七里命中七里香」措辞）。→ ✅ **已解决（2026-09-10 grill 会话，计划升版 V1.3）**：§4.2 按 AGENTS.md 自身边界校正（# Project Info 以上只读）；T1.6 措辞按实测修正；Phase 2 开工清单三项（findByFileIdentity 多命中 / listSongs tiebreaker / listRecent MAX(id)）已升格为正文修订。
 - `getAlbumWithTracks` 的 disc_number NULL 排序依赖 SQLite 默认 NULLS-FIRST，与 `listAlbums` 的显式 NULL 垫底约定不一致（计划原文即 `ORDER BY disc_number, track_number`）。→ **建议时机：Phase 4**（专辑详情 UI 消费时统一 NULL 约定）
 - `trackRepo.updateAfterParse` 的 prepared 语句未按列组合缓存，30k 规模热路径有编译开销。→ **建议时机：Phase 8 性能验收前**（量级无害，顺手缓存）
 - `folderRepo.normalizePath` 边界：UNC 主机段大小写未归一、根路径 `C:\` 归一为 `c:`（语义偏移）、空串无校验；`lower()` 大小写折叠为 ASCII-only。→ **建议时机：Phase 2**（扫描对账消费路径规范化时顺手加固）
