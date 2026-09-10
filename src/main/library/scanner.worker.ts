@@ -225,7 +225,7 @@ async function parseAll(files: StatFile[]): Promise<void> {
     if (parsed.length >= PARSE_BATCH) flush();
   }
   if (parsed.length > 0 || batchSkipped.length > 0) flush();
-  port!.postMessage({ type: 'done', total, skipped } satisfies WorkerOutbound as WorkerOutbound);
+  port.postMessage({ type: 'done', total, skipped } satisfies WorkerOutbound);
 }
 
 // ---------------------------------------------------------------------------
