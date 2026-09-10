@@ -234,6 +234,13 @@ Your agent and bash are running on:
 
 update the project config and agent rules here
 
+## Project Status（每阶段收尾时更新）
+
+- 2026-09-10：Phase 0（工程脚手架与基线，T0.1~T0.5）已完成，§5 验收七条全绿；远端 github.com/CaiYan12/windy-concert（public），分支 main。下一步等用户指令进入 Phase 1（数据层：SQLite + 迁移 + 仓库 + FTS）。
+- 版本决策（用户拍板「模板基线+新增最新」）：electron ^39.2.6 / electron-vite ^5.0.0 / react ^19.2.1 / typescript ^5.9.3 / electron-builder ^26.0.12 不动；新增 better-sqlite3 ^13.0.3 / music-metadata ^11.15.0 / sharp ^0.35.4 / zustand ^5.0.15 / react-router-dom ^7.18.3 / react-virtuoso ^4.18.13 / vitest ^5.0.0 / @playwright/test ^1.63.0 / jsdom ^30.0.1。
+- 本机环境事实：`npm config set allow-scripts` 被 npm 10.9.7 键校验拒绝，改白名单须直接编辑 ~/.npmrc（现含 codebase-memory-mcp,@anthropic-ai/claude-code,electron,better-sqlite3,sharp）；WorkBuddy CLI 沙箱内复跑 `npm run test:e2e` 需前缀 `CODEBUDDY_SAFE_DELETE_ENABLED=0`（用户本机不受影响）；create-electron@1.0.30 无 --help，非交互参数 `--template react-ts --skip` 经包源码实证。
+- 阶段收尾约定（用户拍板 2026-09-10）：每阶段完成后更新三处——工作区记忆（.workbuddy/memory/）、本文件 Project Status、README.md；遗留问题与建议写入 README「暂未解决的问题」段。仓库可见性已于 2026-09-10 转 public。
+
 ## Agent skills
 
 ### Issue tracker
