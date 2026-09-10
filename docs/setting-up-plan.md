@@ -757,7 +757,8 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
 
 **具体技术实现**
 
-- [ ] **T2.1 formats.ts 与 fixtures**：PLAYABLE=`{mp3, flac, wav, ogg, opus, m4a}`、SCANNABLE=PLAYABLE∪`{ape, wma, aiff, aif, dsf, dff, wv, tta, ac3, mka}`。`tests/fixtures/music/` 一次性制作并提交（每个 <100KB，固定为以下 8 个文件，后续 e2e 断言以「入库 7 条」为准——损坏文件按 F1-7 跳过不入库）：
+- [x] **T2.1 formats.ts 与 fixtures**：PLAYABLE=`{mp3, flac, wav, ogg, opus, m4a}`、SCANNABLE=PLAYABLE∪`{ape, wma, aiff, aif, dsf, dff, wv, tta, ac3, mka}`。`tests/fixtures/music/` 一次性制作并提交（每个 <100KB，固定为以下 8 个文件，后续 e2e 断言以「入库 7 条」为准——损坏文件按 F1-7 跳过不入库）：
+  > 执行备注(2026-09-10): formats.ts 两 ReadonlySet 共 16 项；fixtures 8 件 ffmpeg 制作（均 ≤56K）；自证通过——01/02/03 标签+内嵌封面、05 96kHz/24bit（pcm_s24le 中转）、04/07 零用户标签、06 wma 可解析、08 损坏。**关键实测**：music-metadata 11.15.0 对截断 mp3 容错不抛错（0 字节也返回空元数据），08 定型为 70 字节 ID3-only（parseFile 返回 hasAudio:false）——**T2.2/T2.3 的 F1-7 跳过判据必须为「parseFile 抛错 OR !hasAudio/无 duration」**。质量审查发现 04/07 双零标签将经「未知专辑」跨目录归组使 07 的 folder 封面用途落空，经用户批准 07 重制补 album=测试专辑二/album_artist=测试艺人 最小标签，并补完计划正文三处 ape→wma 替换（commit c4a3b47）；质量审查同时留痕：electron-builder files 建议后续补 !tests/**（T8.1）。
   1. `01-夜曲.mp3`（完整标签 + 内嵌封面）
   2. `02-夜曲.flac`（完整标签）
   3. `03-晴天.m4a`（完整标签）
