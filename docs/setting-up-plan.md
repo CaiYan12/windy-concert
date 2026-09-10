@@ -809,7 +809,8 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
 - [ ] **T3.1 channels + handlers**：`src/main/ipc/channels.ts` 常量与类型；`index.ts` 逐条 `ipcMain.handle`，参数校验（id 存在性、枚举值）后转发对应 service/repo；`webContents.send` 封装 scan:progress / covers:ready。
 - [ ] **T3.2 协议注册**：main/index.ts `protocol.registerSchemesAsPrivileged`（两 scheme，§3.5f）；ready 后 `protocol.handle('wc-cover'…)` 与 `protocol.handle('wc-file'…)`（路径前缀校验逻辑，folderRepo 缓存随目录变更失效）。
 - [ ] **T3.3 preload**：contextBridge 暴露 §3.6 形态的 `window.api`；`onScanProgress`/`onCoversReady` 返回 unsubscribe。渲染层加 `src/renderer/src/ipc/client.ts` 薄封装。index.html CSP：`default-src 'self'; img-src 'self' wc-cover:; media-src 'self' wc-file:; style-src 'self' 'unsafe-inline'`。
-- [ ] **T3.4 settingsStore**：`userData/settings.json` 原子写（tmp+rename）；默认值 `{language:'zh-CN', autoScanOnStartup:true, volume:0.8, muted:false}`；get/set IPC；language 变更即返回新资源。
+- [x] **T3.4 settingsStore**：`userData/settings.json` 原子写（tmp+rename）；默认值 `{language:'zh-CN', autoScanOnStartup:true, volume:0.8, muted:false}`；get/set IPC；language 变更即返回新资源。
+  > 执行备注(2026-09-10): **提前执行**（T3.1 handlers 依赖 store；get/set 的 IPC handler 接线归 T3.1，本任务交付 store 本体）。createSettingsStore(deps:{settingsDir}) 注入式零 electron（userData 路径 T3.1 传入）；原子写 try-rename-first（libuv MOVEFILE_REPLACE_EXISTING 覆盖同名通常成功，EPERM 才降级删旧+rename——质量审查指正原「先删旧」方案崩溃窗口过大与注释不准确，已修正）；pickKnown 双重职责（未知键过滤 + KEY_VALIDATORS 逐键 typeof 校验，volume 含有限数校验）——质量审查 Important：IPC 边界后 renderer 参数运行时不可信，已补防线；损坏 JSON/类型非法键回退默认值不抛错；volume 钳制 [0,1]（set 与 get 双侧）；language 值域 M0.1 仅 zh-CN（类型约束）。9 用例。质量复审 APPROVED。
 - [ ] **T3.5 i18n**：`resources/locales/zh-CN.json`（全量文案 key，覆盖 §3.7 所有页面/菜单/空态/设置）；main 侧 `i18n:getMessages` 按磁盘读取（路径解析见 §3.8，5.5 运行时要求）；renderer `i18n/index.ts`：`t(key, params?)` + zustand 语言 store，切换语言重新拉取并整树重渲染。
 - [ ] **T3.6 单测/类型测试**：settings 往返与默认值合并；`window.api` 形状用 `tests/unit/preload-contract.test.ts`（类型层 `expectTypeOf`）锁死，防止后续漂移。
 
