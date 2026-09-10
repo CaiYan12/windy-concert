@@ -68,7 +68,7 @@ CREATE TABLE tracks (
   acoust_id       TEXT,                        -- 预留
   isrc            TEXT,                        -- 预留
   cover_id        TEXT,
-  meta_provenance TEXT,                        -- JSON {"title":"embedded|folder|filename",...}（F2-6）
+  meta_provenance TEXT,                        -- JSON {"title":"embedded|filename","artist":"embedded|default","album":"embedded|default","albumArtist":"embedded|default","cover":"embedded|folder"}（F2-6；V1.3 补全值域）
   play_count      INTEGER NOT NULL DEFAULT 0,
   favorite        INTEGER NOT NULL DEFAULT 0,   -- F6-2 布尔建模
   favorited_at    TEXT,                         -- F6-1 按添加时间排序所需

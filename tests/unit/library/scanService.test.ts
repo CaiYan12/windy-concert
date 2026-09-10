@@ -504,6 +504,8 @@ describe('scanService', () => {
   // T2.5 provenance 写入（F2-6）
   // -------------------------------------------------------------------------
 
+  // 存储契约：meta_provenance 为紧凑 JSON、键序 = buildProvenance 字面量序，故用 toBe 精确断言；
+  // 勿改成 JSON.parse 比对（那会放过键序/空白漂移）。— 评审 Minor 留痕
   it('⑩ 全标签曲目 → meta_provenance 全 embedded（cover 有 picture 亦为 embedded）', async () => {
     const ctx = makeService();
     ctx.worker.responder = standardResponder(ctx); // a1.mp3：tags 全 true + picture
