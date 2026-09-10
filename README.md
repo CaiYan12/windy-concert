@@ -21,16 +21,16 @@ npm run dist       # 生产构建 + electron-builder --win dir
 
 ## 项目详细信息
 
-- **当前状态**：Phase 1 · 数据层（SQLite + 迁移 + 仓库 + FTS）已完成（2026-09-10），npm test 54 passed、typecheck 0 错误、七 repo 全覆盖、import 边界自检通过。Phase 0 · 工程脚手架与基线已完成（2026-09-10），验收七条全绿。
+- **当前状态**：Phase 2 · 扫描与 Metadata 管道已完成并通过第三方评审（2026-09-10，结论 With fixes → I-1 封面来源优先级已修复，91 tests 全绿），Phase 2 代码与状态文档已提交入库。Phase 1 · 数据层、Phase 0 · 脚手架均已完成并入库。下一步等「进入 Phase 3」指令。
 - **技术栈**：Electron ^39.2.6 + electron-vite ^5.0.0（三进程：main / preload / renderer）+ React ^19.2.1 + TypeScript ^5.9.3；数据层 better-sqlite3 ^13.0.3（WAL）、music-metadata ^11.15.0、sharp ^0.35.4；状态 zustand ^5.0.15、路由 react-router-dom ^7.18.3、列表 react-virtuoso ^4.18.13；测试 vitest ^5.0.0 + @playwright/test ^1.63.0。
 - **发布形态**：build\ 绿色目录（exe + 依赖可直接运行）+ 整目录 zip（build.bat / start.bat），NSIS 后置。
 - **文档索引**：实施计划 `docs/setting-up-plan.md`（V1.2，唯一执行依据）、需求终稿 `docs/finale-analysis.md`、领域术语 `CONTEXT.md`、决策记录 `docs/adr/`、设计基线 `docs/design/`（tokens.css 为唯一 tokens 源）。
 
 ## TODO
 
-- [ ] 等待用户指令启动 Phase 2｜扫描与 Metadata 管道（worker 扫描、增量与 move 检测、封面管线）
+- [x] Phase 2｜扫描与 Metadata 管道（2026-09-10 完成并通过第三方评审：30k 首扫 39.5s；F2-2 内嵌优先已强制 V1.6）
 - [x] Phase 1｜数据层：SQLite + 迁移 + 仓库 + FTS（2026-09-10 完成）
-- [ ] Phase 3｜IPC 契约、Preload 桥、设置与 i18n 运行时
+- [ ] 等待「进入 Phase 3」启动指令｜IPC 契约、Preload 桥、设置与 i18n 运行时
 - [ ] Phase 4｜应用 Shell 与浏览/搜索 UI（挂接 docs/design/）
 - [ ] Phase 5｜播放器核心与队列
 - [ ] Phase 6｜收藏、歌单、最近播放
@@ -39,20 +39,30 @@ npm run dist       # 生产构建 + electron-builder --win dir
 
 ## 暂未解决的问题
 
+**Phase 2（扫描与 Metadata 管道）——Phase 3 前置清单（第三方评审产出，按序）**
+
+- `coverService` 的 albumId 去重状态跨扫描常驻，`rescanAll` 全量重扫不会刷新封面。→ **Phase 3 前置 ①**：T3 接线 rescanAll 时暴露 `resetAlbumStates()`（或 full 模式透传封面刷新标志）并补单测
+- `scan.log` 的 coversDropped 汇合口径待定：scanService 侧（未注入 onCoverJob 的丢弃）+ coverService.droppedCount（去重丢弃 + 失败归一）。→ **Phase 3 前置 ②**（组装 scan.log 时决定分开列示或合计）
+- `tracks.cover_id` 列当前不写（封面仅落 albums.cover_id），TrackRow.coverId 恒 null。→ **Phase 4 前置确认**：渲染层封面全部走 album.coverId；如需曲目级封面再启用写路径
+- `wireCoverPipeline` 以 mutate 方式改写 deps.onCoverJob（先建 service 后 wire 会失效）。→ **Phase 3 前置 ③**：T3 组装时改为返回注入 onCoverJob 的新 deps（或直接构造含 onCoverJob 的 deps）
+- worker batch 消息的 `done` 字段未被 scanService 消费（冗余字段）。→ **建议时机：T3 接线时顺手删除或赋语义**
+- `gen-sample-library.mjs` 的 dirCount 统计漏计艺术家目录（打印口径偏低）。→ **建议时机：随手修**（纯显示问题）
+- 计划 §3.4 正文 FTS 触发器仍为旧版 'delete' 语法（代码已按用户批准修正为标准 DELETE，执行备注留痕）。→ **建议时机：T5 文档收尾**统一同步（或保留为历史原文 + 执行备注引用）
+- worker ParsedTrack 携带完整 picture bytes，单批峰值 20–400MB（增量场景量小）。→ **建议时机：M5 性能打点超预期时**（备选：PARSE_BATCH 降 100 / 同 album 置空 picture）
+- F1-7 真独占句柄在 Node/libuv（Windows FILE_SHARE 默认全开）下不可造，以「目录冒充音频文件 + parseFiles 纯函数层 EISDIR」等效覆盖。→ 无需解决（等效覆盖已留痕，真独占场景留待实测）
+- `listSongs` 的 mtime 浮点 vs INTEGER affinity 严格相等比较——当前同源 stat 精确往返无损。→ **建议时机：出现跨扫描 re-parse 抖动时**（比较/存储前取整）
+- 环境事实：vitest #10692（小写盘符 cwd 全挂）与 WorkBuddy safe-delete shim（>50 项批量删除保护致 ENOTEMPTY，已在 vitest.config 无条件禁用、afterEach 加 delete-pending 重试）已规避。→ 无需解决（跨会话跑测试注意入口）
+
 **Phase 1（数据层）**
 
-- `historyRepo.listRecent` 按计划原文用 `MAX(played_at)` 去重，秒级粒度下同曲同秒两次播放会产生重复行（改 `MAX(id)` 或 played_at+id tiebreak）。→ **建议时机：Phase 2 开工清单 ②（必修）**
-- `trackRepo.findByFileIdentity` 返回 `TrackRow | null`，多命中时静默取首行——无法表达 §3.5a adopt 所需「唯一命中」判定。→ **建议时机：Phase 2 开工清单 ①**（改多命中语义并补用例）
-- `trackRepo.listSongs` 排序无 tiebreaker，重复键（如 playCount=0）下 offset 分页会跨页重复/丢行（追加 `, tracks.id` 次级排序键并补分页用例）。→ **建议时机：Phase 2 开工清单 ③**（第三方评审新增发现）
-- 计划文档矛盾（§4.2「AGENTS.md 只读」vs 阶段收尾约定；T1.6「七里命中七里香」措辞）。→ ✅ **已解决（2026-09-10 grill 会话，计划升版 V1.3）**：§4.2 按 AGENTS.md 自身边界校正（# Project Info 以上只读）；T1.6 措辞按实测修正；Phase 2 开工清单三项（findByFileIdentity 多命中 / listSongs tiebreaker / listRecent MAX(id)）已升格为正文修订。
 - `getAlbumWithTracks` 的 disc_number NULL 排序依赖 SQLite 默认 NULLS-FIRST，与 `listAlbums` 的显式 NULL 垫底约定不一致（计划原文即 `ORDER BY disc_number, track_number`）。→ **建议时机：Phase 4**（专辑详情 UI 消费时统一 NULL 约定）
 - `trackRepo.updateAfterParse` 的 prepared 语句未按列组合缓存，30k 规模热路径有编译开销。→ **建议时机：Phase 8 性能验收前**（量级无害，顺手缓存）
-- `folderRepo.normalizePath` 边界：UNC 主机段大小写未归一、根路径 `C:\` 归一为 `c:`（语义偏移）、空串无校验；`lower()` 大小写折叠为 ASCII-only。→ **建议时机：Phase 2**（扫描对账消费路径规范化时顺手加固）
+- `folderRepo.normalizePath` 边界：UNC 主机段大小写未归一、根路径 `C:\` 归一为 `c:`（语义偏移）、空串无校验；`lower()` 大小写折叠为 ASCII-only。→ **建议时机：Phase 2 收尾顺延**（扫描对账已上线，随 Phase 3/4 消费时加固）
 - `playlistRepo.reorder([])` 无守卫会清空歌单；`addTracks` 遇不存在 trackId 的 FK 报错信息不友好。→ **建议时机：Phase 6**（歌单 UI 接入时补守卫与错误文案）
-- 测试缺口（边角）：listSongs 分页/缺省 order、findByFileIdentity 多命中、updateOutcome 缺省字段、folderRepo 重复路径/空串、coverRepo 非法 source、reorder([]) 语义均无用例。→ **建议时机：随上述各项修复同步补**（Phase 2 为主，Phase 6 补歌单侧）
-- folderRepo 规范化测试断言 2/4 形态，可补幂等与无盘符路径断言。→ **建议时机：Phase 2**（随 normalizePath 加固同步补）
-- T1.6 子代理派发遇 429 频率限制，由主会话按 executing-plans 检查点流程接手完成，两阶段审查由主会话自检替代——✅ **已解决**：独立第三方评审（2026-09-10）已补齐，结论 Ready to merge: Yes，Phase 2 开工清单为其产出。
+- 测试缺口（边角）：listSongs 分页/缺省 order、updateOutcome 缺省字段、folderRepo 重复路径/空串、coverRepo 非法 source 均无用例（findByFileIdentity 多命中与 listRecent 同秒已于 Phase 2 前置修复并补用例）。→ **建议时机：Phase 3/6 随对应修复同步补**
 - `@types/better-sqlite3` ^9.6.0 落后运行时 4 个大版本（当前 API 无实际类型风险，预防性维护）。→ **建议时机：Phase 8**（发布前依赖体检时对齐）
+- ✅ **已解决（Phase 2 前置落地，V1.3 升格项）**：findByFileIdentity 多命中语义、listSongs tiebreaker、listRecent MAX(id)——均已修复并补用例。
+- ✅ **已解决**：T1.6 主会话自检替代——已由独立第三方评审（2026-09-10）补齐；计划文档矛盾（§4.2 / T1.6 措辞）——已由 grill 会话 V1.3 修正；folderRepo 规范化测试断言 2/4 形态——已随 T2.1 质量审查补完正文与 07 最小标签（V1.4）。
 
 **Phase 0（脚手架）**
 

@@ -4,9 +4,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 计划版本 | V1.4 |
+| 计划版本 | V1.6 |
 | 日期 | 2026-09-10 |
-| 修订记录 | V1.0 初版；V1.1 发布形态改 build\ 绿色目录 + zip（build.bat / start.bat，NSIS 后置）；V1.2 设计案已交付验收（docs/design-handoff.md），renderer 实施基线锁定为 docs/design/tokens.css + mockups/，Phase 4~7 任务挂接设计稿，图标策略改为本地 vendored lucide-static@1.43.0；V1.3（2026-09-10，grill 会话三项裁定 + 工作流约定）：① §4.2 AGENTS.md 只读边界按该文件自身声明校正（# Project Info 以上固定只读，其下 windy-concert 区按阶段收尾约定更新）；② T1.6 trigram 措辞按实测行为修正（trigram 下限 3 字符，<3 由 §3.5d LIKE 回退兜底）；③ Phase 2 开工清单升格正文：T1.2 findByFileIdentity 改返回 TrackRow[]（唯一命中才 adopt，0 或 ≥2 按 create）、listSongs 追加 tracks.id 次级排序键、T1.4 listRecent 改 MAX(id)（原 MAX(played_at) 秒级同曲同秒会并列出重复行）；④ §5 提交纪律补阶段提交门控（状态更新后暂不提交，待用户提议代码审查完毕后统一提交）；V1.4（2026-09-10）：T2.1 fixture #6 由 06-Track06.ape 改为 06-Track06.wma——实测 ffmpeg 9.0 无 ape 编码器/封装器无法产出合法 .ape，wma 同属 SCANNABLE 不可播集（CONTEXT.md 不可播定义点名 WMA），F1-3 语义等价 |
+| 修订记录 | V1.0 初版；V1.1 发布形态改 build\ 绿色目录 + zip（build.bat / start.bat，NSIS 后置）；V1.2 设计案已交付验收（docs/design-handoff.md），renderer 实施基线锁定为 docs/design/tokens.css + mockups/，Phase 4~7 任务挂接设计稿，图标策略改为本地 vendored lucide-static@1.43.0；V1.3（2026-09-10，grill 会话三项裁定 + 工作流约定）：① §4.2 AGENTS.md 只读边界按该文件自身声明校正（# Project Info 以上固定只读，其下 windy-concert 区按阶段收尾约定更新）；② T1.6 trigram 措辞按实测行为修正（trigram 下限 3 字符，<3 由 §3.5d LIKE 回退兜底）；③ Phase 2 开工清单升格正文：T1.2 findByFileIdentity 改返回 TrackRow[]（唯一命中才 adopt，0 或 ≥2 按 create）、listSongs 追加 tracks.id 次级排序键、T1.4 listRecent 改 MAX(id)（原 MAX(played_at) 秒级同曲同秒会并列出重复行）；④ §5 提交纪律补阶段提交门控（状态更新后暂不提交，待用户提议代码审查完毕后统一提交）；V1.4（2026-09-10）：T2.1 fixture #6 由 06-Track06.ape 改为 06-Track06.wma——实测 ffmpeg 9.0 无 ape 编码器/封装器无法产出合法 .ape，wma 同属 SCANNABLE 不可播集（CONTEXT.md 不可播定义点名 WMA），F1-3 语义等价；V1.5（2026-09-10，用户裁定）：§3.5a 阶段 B 内部顺序重排——markMissing 反向标记前置到分类之前（原序为分类后标记），使「单次重扫的文件移动」可被 adopt 命中保留 UUID（播放计数/收藏不丢）；复制场景（新旧路径并存）旧行不标 missing 仍走 create，无振荡；§3.5a 其余行为不变，T2.6 补单次移动与复制不挤占两用例；V1.6（2026-09-10，用户裁定，Phase 2 第三方评审 I-1）：调和 §3.5e 与 F2-2 的矛盾——封面来源优先级 embedded > folder 强制生效（coverService 状态机支持同专辑混源时 embedded 后到替换重跑，旧 coverId 行与目录保留），§3.5e 管线描述同步补注，coverService.test 补混源两用例 |
 | 上游唯一输入 | docs/finale-analysis.md（需求终稿 V2.0，23 项决策已确认） |
 | 本计划目标 | 从零建立工程，交付 0.1.0（M0.1「可日常使用的本地播放器」） |
 | 配套文档 | CONTEXT.md（领域术语表）、docs/adr/0001~0003、docs/design-plan.md + docs/design/（已验收设计基线）、docs/design-handoff.md |
@@ -478,7 +478,7 @@ audio.onended：ipc history:updatePlayOutcome(historyId, {playedDuration: durati
 
 **（d）搜索（F3-7）**：≥3 字符走 `tracks_fts MATCH`（trigram，中英文子串均可），<3 字符与专辑/艺术家/歌单统一 `LIKE '%'||q||'%'`；结果按 Track(50)/Album(10)/Artist(10)/Playlist(10) 分组返回，handler 内 `console.time` 打点进日志。
 
-**（e）封面管线（F2-2/F2-4/F2-5）**：封面来源判定顺序 = 内嵌 picture（type=front 优先，无则第一张）→ 同目录候选 `cover.jpg → cover.png → folder.jpg → folder.png → front.jpg → album.jpg`。同专辑首个带封面的曲目胜出（内存 Map 按 albumId 去重）。sharp 生成 64/256/512 三档 JPEG（quality 85，`fit:'inside'`）写入 `userData/covers/{coverId}/`。渲染层 URL：`wc-cover://{coverId}?s=256`，handler 校验 coverId 为 UUID 格式后 `net.fetch(pathToFileURL(...))` 返回流。
+**（e）封面管线（F2-2/F2-4/F2-5）**：封面来源判定顺序 = 内嵌 picture（type=front 优先，无则第一张）→ 同目录候选 `cover.jpg → cover.png → folder.jpg → folder.png → front.jpg → album.jpg`。同专辑首个带封面的曲目胜出（内存 Map 按 albumId 去重）——**V1.6 调和：同专辑混源时 embedded 后到替换重跑（embedded > folder 强制优先，F2-2 语义）；旧 coverId 行与目录保留不删**。sharp 生成 64/256/512 三档 JPEG（quality 85，`fit:'inside'`）写入 `userData/covers/{coverId}/`。渲染层 URL：`wc-cover://{coverId}?s=256`，handler 校验 coverId 为 UUID 格式后 `net.fetch(pathToFileURL(...))` 返回流。
 
 **（f）音频文件访问协议**：`wc-file://<encodeURIComponent(绝对路径)>`，handler 校验路径前缀命中「启用中的音乐目录集合」（folderRepo 缓存，目录变更时刷新）才放行，防任意文件读取。`registerSchemesAsPrivileged` 时为两个协议声明 `{ stream: true, supportFetchAPI: true }`。
 
@@ -792,6 +792,7 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
   - F2-3：无标签文件 title=文件名去扩展名；
   - F2-4：仅 cover.jpg 目录的专辑获得 folder 来源封面。
   > 执行备注(2026-09-10): tests/unit/library/scan.e2e.test.ts 13 用例（真集成：RealLogicWorkerAdapter 注入 workerFactory 直驱真 walkFiles/parseFiles + 真 music-metadata + 真 sharp + wireCoverPipeline；scanner.worker 做最小导出重构 walkFiles/parseFiles 纯函数化，入口行为零变化）。九场景全绿 + 两用例强化：策略 1 正向（移出→missing→移入→adopt 三步流）+ 反向（改名失配→新 UUID+旧行 missing）。**计划语义缺口（用户裁定 V1.5）**：adopt 仅匹配 missing 行 + missing 标记在分类后 ⇒ 单次重扫的移动生成新 UUID 丢播放计数——markMissing 前置修复（commit 91b7a9f，复制场景无振荡实证），T2.6 补「单次移动保 id」「复制不挤占」两用例。F1-7 如实留痕：b) 目录冒充音频文件被 walk isDirectory 分支拦截（真实链路不可达 EISDIR），等效失败在 parseFiles 纯函数层复现；c) Node/libuv 无法造真独占句柄（FILE_SHARE默认全开），以 a/b 两条覆盖容错语义。F2-1 断言含 meta_provenance 全 embedded 与封面三档真实生成。**测试环境**：vitest.config.ts 顶部禁用 safe-delete shim（>50 项批量删除保护致清理 ENOTEMPTY 假失败，commit 随 91b7a9f 系列），vitest #10692 需大写盘符 cwd。89 tests 全绿（13 文件）。
+  > 执行备注(2026-09-10): **Phase 2 验收（§6.2-P2 预检）**——30k 样本库（gen-sample-library 生成 30000 文件/839.78MB/14.32s）首扫计时 **39.5s（elapsedMs=39548，≤5min 达标）**，parsed=30000/skipped=0，scan.log 已记录（证据为运行时 console 行 [PERF30K] 与 scan.log 断言，临时计时测试与样本库验收后删除）；封面异步未计入扫描计时（T2.4 语义）。冒烟 = T2.6 真集成用例（service 直驱 fixtures 目录，summary 正确）。临时 perf 测试文件未入库。
 - [x] **T2.7 样本库生成脚本**：`scripts/gen-sample-library.mjs`（附录 B），支持 `--count 30000 --out <dir>`。
   > 执行备注(2026-09-10): 附录 B 契约逐条落地（10 艺术家均分+余数摊派、每艺术家 min(5,tracks) 专辑、全局 i 奇偶交替命名、i%50===1 标签版——flac 槽标签分支为计数方案固有死分支已注释留痕、statfsSync 磁盘检查 max(2GB, 均摊×1.1)、非空拒绝+--force、总数自校验）；同步复制 copyFileSync 非 await 串行（30k 量级 10-30s SSD）。自证：count=300/60/30/51 四轮字节核算逐一吻合、50 阈值边界实证、非空拒绝与 --force 实证。质量审查 APPROVED（Minor：dirCount 漏计艺术家目录、复制失败无半成品提示——体验级留档）。附录 B 适配点四处留痕（07 路径 album2/ 子目录、07 最小标签口径、flac 槽标签版、专辑数自定）。
 
