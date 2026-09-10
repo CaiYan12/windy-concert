@@ -763,8 +763,8 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
   3. `03-晴天.m4a`（完整标签）
   4. `04-untagged.flac`（零标签）
   5. `05-hires.flac`（24bit/96kHz 标签完整，Hi-Res 列验收）
-  6. `album2/06-Track06.ape`（完整标签，不可播格式）
-  7. `album2/07-Track07.mp3`（零标签，专辑封面来自 `album2/cover.jpg`）
+  6. `album2/06-Track06.wma`（完整标签，不可播格式；V1.4 原 .ape——ffmpeg 无 ape 编码器）
+  7. `album2/07-Track07.mp3`（仅 album=测试专辑二、album_artist=测试艺人，缺 title/artist；专辑封面来自 `album2/cover.jpg`；V1.4 调整——防与 04 双零标签经「未知专辑」跨目录归组）
   8. `08-broken.mp3`（字节截断，扫描容错样本，不入库）
   ```bash
   ffmpeg -f lavfi -i anullsrc=r=44100:cl=stereo -t 3 -metadata title="夜曲" -metadata artist="周杰伦" \
@@ -782,7 +782,7 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
   - 策略 1：改名/移动目录后重扫，Track id 不变（UUID 断言）；
   - F1-6：删除文件重扫 → status=missing；文件恢复 → available（走 adopt）；
   - F1-7：损坏文件与被占用文件（测试内以独占句柄模拟）不中断扫描；
-  - F1-3：APE 入库且 playable=0；
+  - F1-3：WMA 入库且 playable=0（V1.4 原 APE）；
   - F2-1：三格式 fixture 全字段断言（含 cover bytes 存在）；
   - F2-3：无标签文件 title=文件名去扩展名；
   - F2-4：仅 cover.jpg 目录的专辑获得 folder 来源封面。
@@ -915,7 +915,7 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
 |---|---|---|
 | F1-1 | 添加 D:\Music 重启仍在；禁用目录不再扫描 | e2e settings-folders |
 | F1-2 | 5 层嵌套全部入库 | 单测 |
-| F1-3 | 原生集可播；APE 入库且 UI 标记不可播原因 | 单测 + e2e scan-and-browse |
+| F1-3 | 原生集可播；WMA 入库且 UI 标记不可播原因（V1.4 原 APE） | 单测 + e2e scan-and-browse |
 | F1-4 | 二次扫描不重解析未变文件（解析计数=0） | 单测 |
 | F1-5 | 启动增量 ≤10s（3 万库）；新增文件下次启动入库 | scan.log + 人工 M2 |
 | F1-6 | 拔盘显示 missing 不消失；重连恢复 | 单测 + 人工 M5 |
