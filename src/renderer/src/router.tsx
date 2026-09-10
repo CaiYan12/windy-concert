@@ -14,20 +14,34 @@ import AppShell from './components/layout/AppShell'
 import { PagePlaceholder } from './pages/PagePlaceholder'
 import { DEFAULT_ROUTE_PATH, ROUTE_DEFS } from './routes'
 
-const pageRoutes: RouteObject[] = ROUTE_DEFS.map((def) => ({
-  // 子路由用相对路径（去掉前导 '/'）；参数段 ':id' 原样保留。
-  path: def.path.replace(/^\//, ''),
-  element: <PagePlaceholder />
-}))
+/**
+ * 路由 handle：顶栏标题键随路由对象一起注册，Topbar 用 useMatches() 读取。
+ * 这是「路径 → 标题」的唯一来源——匹配语义（大小写不敏感、% 解码、// 归一）完全交给 react-router，
+ * 不再有平行匹配器（见 routes.ts 顶部 I2 留痕）。
+ */
+export interface RouteHandle {
+  titleKey: string
+  eyebrowKey: string
+}
 
-export const router = createHashRouter([
+/**
+ * 应用路由配置（导出供单测直接用 matchRoutes 断言 handle 解析，与运行时同一份对象，杜绝漂移）。
+ */
+export const APP_ROUTES: RouteObject[] = [
   {
     path: '/',
     element: <AppShell />,
     children: [
       { index: true, element: <Navigate to={DEFAULT_ROUTE_PATH} replace /> },
-      ...pageRoutes,
+      ...ROUTE_DEFS.map<RouteObject>((def) => ({
+        // 子路由用相对路径（去掉前导 '/'）；参数段 ':id' 原样保留。
+        path: def.path.replace(/^\//, ''),
+        element: <PagePlaceholder />,
+        handle: { titleKey: def.titleKey, eyebrowKey: def.eyebrowKey } satisfies RouteHandle
+      })),
       { path: '*', element: <Navigate to={DEFAULT_ROUTE_PATH} replace /> }
     ]
   }
-])
+]
+
+export const router = createHashRouter(APP_ROUTES)

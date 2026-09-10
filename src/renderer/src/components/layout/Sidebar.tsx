@@ -1,28 +1,15 @@
 import type { ReactElement } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '../../i18n'
-import { Icon, type IconName } from '../Icon'
-
-interface NavItem {
-  to: string
-  /** 导航文案 i18n key（禁硬编码）。 */
-  labelKey: string
-  icon: IconName
-}
+import { NAV_ITEMS } from '../../routes'
+import { Icon } from '../Icon'
 
 /**
  * 侧栏七项（顺序 = design-plan §4.1 侧栏结构：歌曲/专辑/艺术家/歌单/喜欢的音乐/最近播放/设置）。
+ * 不再单独维护：由 routes.ts 的 ROUTE_DEFS 带 nav 的条目派生（唯一源），labelKey 即该路由的 titleKey。
  * 图标映射对照 docs/design/icons.md 与 mockup.css：music-2 / disc-3 / mic-2 / library / heart / history / settings。
+ * （T4.1 评审 I1：此前 NAV_ITEMS 与 ROUTE_DEFS 二处维护、7 组 labelKey/titleKey 完全重复，无测试守护。）
  */
-const NAV_ITEMS: readonly NavItem[] = [
-  { to: '/songs', labelKey: 'nav.songs', icon: 'music-2' },
-  { to: '/albums', labelKey: 'nav.albums', icon: 'disc-3' },
-  { to: '/artists', labelKey: 'nav.artists', icon: 'mic-2' },
-  { to: '/playlists', labelKey: 'nav.playlists', icon: 'library' },
-  { to: '/liked', labelKey: 'nav.liked', icon: 'heart' },
-  { to: '/recent', labelKey: 'nav.recent', icon: 'history' },
-  { to: '/settings', labelKey: 'nav.settings', icon: 'settings' }
-]
 
 export interface SidebarProps {
   /**

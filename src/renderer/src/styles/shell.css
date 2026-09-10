@@ -75,18 +75,6 @@ a {
   color: var(--text-tertiary);
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* mockup.css:114-130 */
 .skip-link {
   position: fixed;
@@ -615,3 +603,40 @@ a {
   cursor: default;
   background: var(--text-disabled);
 }
+
+/* ---------- 无障碍偏好（mockup.css:2230-2251） ---------- */
+/* 壳层多处使用 250ms 过渡（.nav-link / .icon-button / .search-box / .queue-panel 等）。
+   prefers-reduced-motion 采用设计稿的「全局压平」而非逐条列举：新增过渡自动覆盖，不会漏。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .queue-panel {
+    transition: none;
+  }
+}
+
+/* 高对比度偏好：在 :root 覆盖 tokens.css 的同名 token（提升分隔线与次级/三级文字不透明度）。
+   本文件在 tokens.css 之后加载，同特异性下后者生效，无需 !important。 */
+@media (prefers-contrast: more) {
+  :root {
+    --divider: rgba(255, 255, 255, 0.2);
+    --text-secondary: rgba(255, 255, 255, 0.78);
+    --text-tertiary: rgba(255, 255, 255, 0.58);
+  }
+}
+
+/* 显式留痕（I4 评审）：mockup.css:2185-2228 的 @media (max-width:1100px/1000px) 未移植。
+   取舍依据：
+     · 两段核心是 Track 表列宽/隐藏列（.col-bitrate/.col-spec/.track-row）——属 T4.3+ 页面内容，
+       当前壳层无这些元素；
+     · 对壳层只剩 .player-bar 列宽、.topbar gap、.search-box 宽、.volume-control 宽四项微调，而
+       html/body 的 min-width:960px 已把有效视口下限钳在 960，且 .player-bar 已改用 minmax(0,…)
+       （见上方偏离留痕）——960px 下主区 728px 可容纳搜索框（聚焦态 400px）与三列播放栏，不溢出；
+     · 后续 T4.3 接入轨道表时再按稿补回这两个断点（连同列宽一并搬运）。 */

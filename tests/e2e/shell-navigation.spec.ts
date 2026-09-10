@@ -69,3 +69,28 @@ test('导航可用：点击侧栏「专辑」后标题/路由/活跃态同步更
   await page.waitForFunction(() => window.location.hash === '#/songs')
   await expect(page.locator('.topbar .page-title')).toHaveText('歌曲')
 })
+
+/**
+ * C1 回归（T4.1 评审）：skip-link 在 hash 路由下曾把 location.hash 改成 `#main-content`，
+ * react-router 读成路径 `main-content` → 未命中 → `*` 兜底 Navigate 回 /songs。
+ * **必须落在非 Songs 页**——在 /songs 上激活时「弹回 /songs」与外观看不出差别，正是原漏检原因。
+ */
+test('skip-link 在非 Songs 页激活后不跳路由，焦点落到主内容（C1 回归）', async ({ app }) => {
+  const { page } = app
+  await page.waitForSelector('.app-shell')
+
+  // 先进入「专辑」（非 Songs 页）
+  await page.locator('.sidebar .nav-link').filter({ hasText: '专辑' }).click()
+  await page.waitForFunction(() => window.location.hash === '#/albums')
+
+  // 键盘激活 skip-link（它是壳层首个可聚焦元素，等价真实 Tab+Enter）
+  await page.locator('.skip-link').focus()
+  await expect(page.locator('.skip-link')).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  // 断言：hash 未变、仍是专辑页、焦点程序化落到 #main-content
+  expect(await page.evaluate(() => window.location.hash)).toBe('#/albums')
+  await expect(page.locator('.topbar .page-title')).toHaveText('专辑')
+  await expect(page.locator('.sidebar .nav-link[aria-current="page"]')).toHaveText(/专辑/)
+  await expect(page.locator('#main-content')).toBeFocused()
+})

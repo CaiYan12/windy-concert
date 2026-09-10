@@ -51,13 +51,15 @@ export function PlayerBar(): ReactElement {
         </div>
         <div className="scrub-row">
           <span className="numeric">—</span>
+          {/* M5（T4.1 评审）：占位期无进度值，去掉 aria-valuenow——此前硬写 0 会让 AT 宣读「进度 0%」，
+              与「不伪造 0:00/时长」的占位立场矛盾。保留 role/label/min/max 与 aria-disabled，
+              T5.4 接入真实 position 后再补 aria-valuenow。 */}
           <div
             className="progress-bar"
             role="slider"
             aria-label={t('player.progress')}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={0}
             aria-disabled="true"
           />
           <span className="numeric">—</span>
@@ -72,13 +74,13 @@ export function PlayerBar(): ReactElement {
           <button className="icon-button" type="button" aria-label={t('player.mute')} disabled>
             <Icon name="volume-2" />
           </button>
+          {/* M5：同进度条，占位期不声明 aria-valuenow（避免宣读「音量 0%」）。 */}
           <div
             className="volume-bar"
             role="slider"
             aria-label={t('player.volume')}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={0}
             aria-disabled="true"
           />
         </div>

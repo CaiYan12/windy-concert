@@ -16,12 +16,25 @@ import { Topbar } from './Topbar'
  *
  * skip-link 置于 .app-shell 首个子节点（设计稿中它是 body 直接子节点）；因 position: fixed 不参与
  * grid 布局，位置等价而 React 树更聚合。
+ *
+ * C1（T4.1 评审）：hash 路由下 `href="#main-content"` 会被当作路由跳转——点击后 location.hash 变为
+ *   `#main-content`，react-router 读到 path `main-content`，未命中任何路由 → `*` 兜底 Navigate 回
+ *   落地页 Songs。任何非 Songs 页激活「跳到主要内容」都会被弹回 Songs。
+ *   修法：保留 href 语义（可访问性 / 无 JS 降级），但 onClick preventDefault 阻断 hash 变更，
+ *   改为把焦点程序化移交给 <main id="main-content" tabIndex={-1}>（tabIndex=-1 使其可编程聚焦）。
  */
 export function AppShell(): ReactElement {
   const { t } = useI18n()
   return (
     <div className="app-shell">
-      <a className="skip-link" href="#main-content">
+      <a
+        className="skip-link"
+        href="#main-content"
+        onClick={(e) => {
+          e.preventDefault()
+          document.getElementById('main-content')?.focus()
+        }}
+      >
         {t('a11y.skipToContent')}
       </a>
       <Sidebar />
