@@ -6,6 +6,9 @@
 //   - done 形态：全部解析完成后发一条 {type:'done', total, skipped}（total=解析产出总数，skipped=累计跳过清单）
 //   - error 形态（评审 Important #1 / Minor #1 新增）：worker 顶层异常或收到未知消息类型时，
 //     发一条 {type:'error', stage:'stat'|'parse'|'unknown', message:string} 回主进程；发送后不再继续处理该消息（避免半状态）
+// T2.6 最小导出重构留痕：walk → export walkFiles、parseAll → export parseFiles(files, post)
+// （纯函数抽 export，worker 入口消息处理改为调用二者，行为零变化）；parentPort 缺失放宽为
+// 跳过消息注册（对齐 cover.worker 先例）——供测试 RealLogicWorkerAdapter 直驱真实逻辑。
 import { parentPort } from 'node:worker_threads';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
@@ -81,17 +84,19 @@ const STAT_BATCH = 64;
 /** 每批回传解析条数（§3.5a 阶段 C：每 200 条一批）。 */
 const PARSE_BATCH = 200;
 
-// Minor #4：模块顶部一次性校验并收敛为具名 const，后续不再散布 `port!` 非空断言
-const port = parentPort!;
-if (!port) {
-  throw new Error('scanner.worker 必须以 worker_threads Worker 方式启动');
-}
+// Minor #4：模块顶部收敛 parentPort 引用。
+// T2.6 变更留痕：原实现 parentPort 缺失即 throw——但 vitest 需直接 import 纯函数
+// walkFiles/parseFiles（对齐 cover.worker T2.4 先例），故放宽为「缺失则仅跳过消息注册」；
+// 真实 worker 线程中 parentPort 恒存在，入口消息处理行为零变化。
+const port = parentPort;
 
 // ---------------------------------------------------------------------------
 // 阶段 A：walker（readdir withFileTypes 递归；目录失败仅记 skipped 跳过）
+// T2.6 导出留痕：原私有 walk 抽为导出纯函数 walkFiles——RealLogicWorkerAdapter（测试）
+// 收到 {type:'stat'} 后直驱本函数回放真实 stat 消息；worker 入口逻辑零变化。
 // ---------------------------------------------------------------------------
 
-async function walk(dirs: string[]): Promise<{ files: StatFile[]; skipped: string[] }> {
+export async function walkFiles(dirs: string[]): Promise<{ files: StatFile[]; skipped: string[] }> {
   const queue = [...dirs];
   const rawFiles: string[] = [];
   const skipped: string[] = [];
@@ -212,7 +217,16 @@ async function parseOne(file: StatFile): Promise<ParsedTrack | null> {
   };
 }
 
-async function parseAll(files: StatFile[]): Promise<void> {
+// ---------------------------------------------------------------------------
+// 阶段 C：解析（music-metadata parseFile；字段映射逐字按计划）
+// T2.6 导出留痕：原私有 parseAll 抽为导出纯函数 parseFiles——消息出口经 post 参数注入
+// （worker 入口传 port.postMessage，测试适配器传 EventEmitter.emit 回放），协议形态零变化。
+// ---------------------------------------------------------------------------
+
+export async function parseFiles(
+  files: StatFile[],
+  post: (msg: WorkerOutbound) => void,
+): Promise<void> {
   const parsed: ParsedTrack[] = [];
   const skipped: string[] = [];
   let batchSkipped: string[] = [];
@@ -224,7 +238,7 @@ async function parseAll(files: StatFile[]): Promise<void> {
       done: parsed.length,
       skipped: batchSkipped,
     };
-    port.postMessage(msg);
+    post(msg);
     parsed.length = 0;
     batchSkipped = [];
   };
@@ -242,35 +256,37 @@ async function parseAll(files: StatFile[]): Promise<void> {
     if (parsed.length >= PARSE_BATCH) flush();
   }
   if (parsed.length > 0 || batchSkipped.length > 0) flush();
-  port.postMessage({ type: 'done', total, skipped } satisfies WorkerOutbound);
+  post({ type: 'done', total, skipped } satisfies WorkerOutbound);
 }
 
 // ---------------------------------------------------------------------------
 // 消息驱动
 // ---------------------------------------------------------------------------
 
-port.on('message', async (msg: WorkerInbound) => {
-  // 顶层错误兜底（评审 Important #1）：async 处理函数内任何异常都回 error 消息，
-  // catch 后 return，不再继续处理该消息（避免半状态）。stage 标记当前处理阶段。
-  let stage: 'stat' | 'parse' | 'unknown' = 'unknown';
-  try {
-    if (msg.type === 'stat') {
-      stage = 'stat';
-      const { files, skipped } = await walk(msg.dirs);
-      port.postMessage({ type: 'stat', files, skipped } satisfies WorkerOutbound);
-    } else if (msg.type === 'parse') {
-      stage = 'parse';
-      await parseAll(msg.files);
-    } else {
-      // 未知消息类型（评审 Minor #1）：回执 error，不静默丢弃
-      port.postMessage({
-        type: 'error',
-        stage: 'unknown',
-        message: `unknown message type: ${String((msg as { type?: unknown }).type)}`,
-      } satisfies WorkerOutbound);
+if (port) {
+  port.on('message', async (msg: WorkerInbound) => {
+    // 顶层错误兜底（评审 Important #1）：async 处理函数内任何异常都回 error 消息，
+    // catch 后 return，不再继续处理该消息（避免半状态）。stage 标记当前处理阶段。
+    let stage: 'stat' | 'parse' | 'unknown' = 'unknown';
+    try {
+      if (msg.type === 'stat') {
+        stage = 'stat';
+        const { files, skipped } = await walkFiles(msg.dirs);
+        port.postMessage({ type: 'stat', files, skipped } satisfies WorkerOutbound);
+      } else if (msg.type === 'parse') {
+        stage = 'parse';
+        await parseFiles(msg.files, (m) => port.postMessage(m));
+      } else {
+        // 未知消息类型（评审 Minor #1）：回执 error，不静默丢弃
+        port.postMessage({
+          type: 'error',
+          stage: 'unknown',
+          message: `unknown message type: ${String((msg as { type?: unknown }).type)}`,
+        } satisfies WorkerOutbound);
+      }
+    } catch (err) {
+      port.postMessage({ type: 'error', stage, message: String(err) } satisfies WorkerOutbound);
+      return;
     }
-  } catch (err) {
-    port.postMessage({ type: 'error', stage, message: String(err) } satisfies WorkerOutbound);
-    return;
-  }
-});
+  });
+}
