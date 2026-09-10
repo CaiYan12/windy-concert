@@ -87,4 +87,34 @@ describe('Cover onError 回退（客户端挂载）', () => {
     })
     container.remove()
   })
+
+  it('failedUrl 以 url 为键：失败后 coverId 变化 → 重新出图（不复用旧失败标记）', () => {
+    ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
+      true
+    const OTHER = 'abcdefab-1234-5678-9abc-def012345678'
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    // ① 首图取图失败 → 占位
+    act(() => {
+      root.render(<Cover coverId={UUID} size={64} className="cover--table" />)
+    })
+    act(() => {
+      container.querySelector('img')?.dispatchEvent(new Event('error'))
+    })
+    expect(container.querySelector('.cover--placeholder')).not.toBeNull()
+
+    // ② coverId 变化（virtuoso 行复用场景）→ 新 url 未被标记失败，应重新渲染 <img>
+    act(() => {
+      root.render(<Cover coverId={OTHER} size={64} className="cover--table" />)
+    })
+    expect(container.querySelector('.cover--placeholder')).toBeNull()
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(`wc-cover://${OTHER}?s=64`)
+
+    act(() => {
+      root.unmount()
+    })
+    container.remove()
+  })
 })

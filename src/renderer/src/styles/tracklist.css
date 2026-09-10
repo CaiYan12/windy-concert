@@ -118,9 +118,10 @@
   background: var(--row-active);
 }
 
+/* C1：播放态文字着色（.track-title / 序号单元格）。**不再列 .is-playing-icon**——Icon 渲染 <img>，
+ * CSS color 对 SVG 内部 stroke 无效；播放图标的绿色由变体文件 music-2--accent.svg 承担。 */
 .track-row.is-playing .track-title,
-.track-row.is-playing .track-cell--index,
-.track-row.is-playing .is-playing-icon {
+.track-row.is-playing .track-cell--index {
   color: var(--accent);
 }
 
@@ -171,7 +172,6 @@
   border: 0;
   border-radius: var(--radius);
   background: transparent;
-  color: var(--text-primary);
 }
 
 .track-row:hover .row-play,
@@ -179,11 +179,18 @@
   display: inline-grid;
 }
 
+/* C1 同类自查：这里是另一处「CSS color 给 Icon 上色」的无效点——<img> 不继承 color，
+ * play/ban/file-x-2 的 stroke 均为烘焙白色。占位期的禁用语义改用 opacity 表达（与 shell.css
+ * 的「disabled → .25」一致；项目无灰色 ban/play 变体文件，故不能用变体修）。 */
 .track-row.is-unavailable .row-play,
 .track-row.is-missing .row-play {
   display: inline-grid;
-  color: var(--text-disabled);
   cursor: not-allowed;
+}
+
+.track-row.is-unavailable .row-play .library-icon,
+.track-row.is-missing .row-play .library-icon {
+  opacity: 0.25;
 }
 
 .track-title {
@@ -307,8 +314,9 @@
   box-shadow: var(--shadow-float);
 }
 
-.context-item--parent:hover > .context-submenu,
-.context-item--parent:focus-within > .context-submenu {
+/* I4：展开改由 JS 状态驱动（.is-open），以便同步 aria-expanded 与键盘 ←/→ 操作；
+ * hover 由组件 onMouseEnter/Leave 开关同一状态，视觉与语义一致。 */
+.context-item--parent.is-open > .context-submenu {
   display: grid;
 }
 

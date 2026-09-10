@@ -88,6 +88,18 @@ test('TrackList × Cover 真实渲染：七行 / 缺失 / 不可播 / 排序 / �
     await runScan()
 
     // ④ 重载页面：PagePlaceholder（临时验证入口）挂载即 library.refresh()，经真实 IPC 取回 7 行。
+    //    C1 播放图标变体断言需要一行 playing 态，而真实播放态属 T5.6（playerStore 未建）——
+    //    经 PagePlaceholder 的临时验证钩子 `#/songs?playing=<id>` 注入 playingTrackId（该钩子随
+    //    本分支在 T4.4 一并移除，非生产行为）。
+    const firstSongId = await page.evaluate(async () => {
+      const api = (window as unknown as { api: ApiLike }).api
+      const rows = await api.library.listSongs({ sortBy: 'title', order: 'asc', limit: 1 })
+      return rows[0]?.id ?? null
+    })
+    expect(firstSongId).toBeTruthy()
+    await page.evaluate((id) => {
+      window.location.hash = `#/songs?playing=${id}`
+    }, firstSongId)
     await page.reload()
     await page.waitForSelector('.track-table[role="table"]')
     await page.waitForFunction(
@@ -104,7 +116,15 @@ test('TrackList × Cover 真实渲染：七行 / 缺失 / 不可播 / 排序 / �
     await expect(page.locator('.track-row--head')).toHaveCount(1)
     await expect(page.locator('.track-row:not(.track-row--head)')).toHaveCount(7)
 
-    // ⑥ 缺失行：右侧 file-x-2 灰标 + 副标题「文件缺失」+ 行内播放禁用（双击无效由单测锚定）
+    // ⑤.5 C1：播放行图标必须走 accent 变体（music-2--accent），而非靠 CSS color 上色的 music-2。
+    const playingRow = page.locator('.track-row.is-playing')
+    await expect(playingRow).toHaveCount(1)
+    await expect(playingRow.locator('.is-playing-icon')).toHaveAttribute('src', /music-2--accent/)
+
+    // ⑥ 缺失行：右侧 file-x-2 灰标 + 副标题「文件缺失」+ 行内播放禁用。
+    //    双击拦截由单测锚定：src/renderer/src/components/TrackList.test.tsx 的
+    //    「TrackRowItem 双击拦截（I3）」用例（客户端挂载 + 真实 dblclick，断言 missing / 不可播
+    //    不触发 onActivate、正常行触发一次）——此处不重复事件断言。
     const missingRow = page.locator('.track-row.is-missing')
     await expect(missingRow).toHaveCount(1)
     await expect(missingRow.locator('.track-status-mark img.library-icon')).toHaveAttribute(
@@ -171,14 +191,18 @@ test('TrackList × Cover 真实渲染：七行 / 缺失 / 不可播 / 排序 / �
     await page.keyboard.press('Escape')
     await expect(menu).toHaveCount(0)
 
-    // ⑪ 封面：Cover 两分支 + 表格档（64）真实解码。
-    //    数据层现状（实测，报告留痕）：本构建 coverService 只写 albums.cover_id，tracks.cover_id
-    //    无任何写入点（scanService 仅把封面作为 album 维度的 CoverJob 投递）→ 真实曲目行的
-    //    TrackRow.coverId 恒为 null，行内封面渲染占位分支。故断言取稳健形态：
+    // ⑪ 封面：Cover 两分支 + 表格档（64）。
+    //    **覆盖边界（I7 留痕，勿产生错误通过感）**：本构建 coverService 只写 albums.cover_id，
+    //    tracks.cover_id 无任何写入点（scanService 仅把封面作为 album 维度的 CoverJob 投递）→ 真实
+    //    曲目行的 TrackRow.coverId 恒为 null，**.track-cell--cover 的「实图」分支在数据层缺写入点、
+    //    未被本 e2e 覆盖**；下方 (a)(b) 实际只走到占位分支。表格封面通路改造属 T4.4 前置独立任务
+    //    （已由用户裁定为「渲染层走专辑封面」），不在本任务范围。
+    //    因此断言取稳健形态：
     //    (a) 7 个封面单元各恰好一个 .cover，且「实图 + 占位」= 总数（两分支互斥且完备）；
     //    (b) 若存在实图（coverId 非空），其 <img src="wc-cover://…?s=64"> 必须真解码——不静默退回；
     //    (c) 无条件：以真实专辑 coverId 构造 Cover 同款 URL（见 Cover.coverUrl）注入 <img>，断言
-    //        naturalWidth > 0 —— 证明 Cover 生成的 URL 形态在表格档（s=64）确实出图。
+    //        naturalWidth > 0 —— 这是**协议级冒烟**（证明 URL 形态在表格档 s=64 确实出图），
+    //        不等于「表格实图分支已被覆盖」。
     await expect(page.locator('.track-cell--cover .cover')).toHaveCount(7)
 
     const coverTally = await page.evaluate(() => {

@@ -11,9 +11,14 @@
  * i18n 处理：本测试把 i18n store 的 messages 换成**哨兵表**（值 = «key»），
  *   从而断言「组件确实经 t() 取用了正确的 key」，而不复制 resources 里的真实文案
  *   （真实文案与键完整性由 tests/unit/i18n 的 node 用例守卫）。
+ *
+ * 事件驱动用例（双击拦截 I3）：本文件对 TrackRowItem 做一次最小客户端挂载（react-dom/client +
+ *   act，无 @testing-library），因为 SSR 无法派发事件；形态与 Cover.test.tsx 的 onError 用例一致。
  */
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TrackRow } from '../../../shared/types'
 import { useI18nStore } from '../i18n'
 import {
@@ -76,6 +81,7 @@ MESSAGES['hires.kbps'] = '{value} kbps'
 
 beforeEach(() => {
   useI18nStore.setState({ messages: { ...MESSAGES }, loaded: true, language: 'zh-CN' })
+  ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 })
 
 function makeTrack(over: Partial<TrackRow> = {}): TrackRow {
@@ -270,12 +276,14 @@ describe('TrackRowItem（六态渲染）', () => {
     expect(html).toContain('disabled=""')
   })
 
-  it('playing：is-playing + 序号位换成 music-2（不再渲染序号） + 收藏态 ♥', () => {
+  it('playing：is-playing + 序号位换成 music-2--accent（不再渲染序号） + 收藏态 ♥', () => {
     const html = renderToStaticMarkup(
       <TrackRowItem track={makeTrack({ favorite: true })} index={4} isPlaying isSelected={false} />
     )
     expect(html).toContain('is-playing')
     expect(html).toContain('«track.playing»')
+    // C1：播放图标必须是 accent 变体（语义色 = 选对变体文件名），而非靠 CSS color 上色的 music-2。
+    expect(html).toContain('music-2--accent')
     expect(html).toContain('heart--accent')
     expect(html).not.toContain('index-number')
   })
@@ -286,6 +294,73 @@ describe('TrackRowItem（六态渲染）', () => {
     )
     expect(html).toContain('is-selected')
     expect(html).toContain('aria-selected="true"')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 双击拦截（§3.7 line 572：missing / 不可播双击无效）——客户端挂载 + 真实事件（I3）
+// ---------------------------------------------------------------------------
+
+describe('TrackRowItem 双击拦截（I3：事件驱动，非 SSR）', () => {
+  function mountRow(track: TrackRow): {
+    row: HTMLElement
+    onActivate: ReturnType<typeof vi.fn>
+    unmount: () => void
+  } {
+    const onActivate = vi.fn()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    act(() => {
+      root.render(
+        <TrackRowItem
+          track={track}
+          index={0}
+          isPlaying={false}
+          isSelected={false}
+          onActivate={onActivate}
+        />
+      )
+    })
+    const row = container.querySelector<HTMLElement>('.track-row')
+    if (!row) throw new Error('未渲染出 .track-row')
+    return {
+      row,
+      onActivate,
+      unmount: () => {
+        act(() => root.unmount())
+        container.remove()
+      }
+    }
+  }
+
+  it('正常行双击 → onActivate 触发一次，参数为该曲目', () => {
+    const track = makeTrack()
+    const { row, onActivate, unmount } = mountRow(track)
+    act(() => {
+      row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    })
+    expect(onActivate).toHaveBeenCalledTimes(1)
+    expect(onActivate).toHaveBeenCalledWith(track)
+    unmount()
+  })
+
+  it('missing 行双击 → onActivate 不触发', () => {
+    const { row, onActivate, unmount } = mountRow(makeTrack({ status: 'missing', playable: false }))
+    act(() => {
+      row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    })
+    expect(onActivate).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it('不可播行双击 → onActivate 不触发', () => {
+    const { row, onActivate, unmount } = mountRow(makeTrack({ playable: false }))
+    act(() => {
+      row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    })
+    expect(onActivate).not.toHaveBeenCalled()
+    unmount()
   })
 })
 
@@ -347,5 +422,39 @@ describe('TrackList 非数据态', () => {
     const html = renderToStaticMarkup(<TrackList songs={[makeTrack()]} />)
     expect(html).not.toContain('«empty.songs.title»')
     expect(html).not.toContain('«songs.loading»')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// I1：error 与数据并存 → 非阻塞错误条 + 排序指示降级
+// ---------------------------------------------------------------------------
+
+describe('TrackList error × 数据并存（I1）', () => {
+  it('数据非空 + error → 渲染非阻塞错误条（不遮列表）且表头排序指示降级', () => {
+    const html = renderToStaticMarkup(<TrackList songs={[makeTrack()]} error="IPC 失败" />)
+    // 非阻塞错误条：出现在表格内、与行容器并列（Virtuoso 之外，SSR 可见）。
+    expect(html).toContain('class="track-list-error"')
+    expect(html).toContain('role="status"')
+    expect(html).toContain('«songs.error»')
+    expect(html).toContain('IPC 失败')
+    // 排序指示降级：避免「箭头指新序、列表是旧数据」的自相矛盾暗示。
+    expect(html).toContain('is-sort-degraded')
+    // 不因 error 退回空态文案。
+    expect(html).not.toContain('«empty.songs.title»')
+  })
+
+  it('数据非空且无 error → 无错误条、表头不降级', () => {
+    const html = renderToStaticMarkup(<TrackList songs={[makeTrack()]} />)
+    expect(html).not.toContain('track-list-error')
+    expect(html).not.toContain('is-sort-degraded')
+  })
+
+  it('TrackHeaderRow sortDegraded → 追加 is-sort-degraded 类（默认不追加）', () => {
+    expect(renderToStaticMarkup(<TrackHeaderRow sortBy="title" order="asc" />)).not.toContain(
+      'is-sort-degraded'
+    )
+    expect(
+      renderToStaticMarkup(<TrackHeaderRow sortBy="title" order="asc" sortDegraded />)
+    ).toContain('is-sort-degraded')
   })
 })

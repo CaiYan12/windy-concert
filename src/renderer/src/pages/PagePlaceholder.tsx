@@ -20,7 +20,7 @@ import { TrackList } from '../components/TrackList'
  */
 export function PagePlaceholder(): ReactElement {
   const { t } = useI18n()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const library = useLibrary()
 
   // 首屏取数（store 只在 setSort/setPage/扫描完成后自动 refresh；进入页面需一次显式拉取）。
@@ -29,6 +29,10 @@ export function PagePlaceholder(): ReactElement {
   }, [library.refresh])
 
   if (pathname === '/songs') {
+    // T4.3 临时验证钩子（报告留痕，随本分支在 T4.4 一并移除）：真实播放态由 T5.6 的 playerStore
+    // 提供，当前无 store 可接线；e2e 以 `#/songs?playing=<id>` 注入 playingTrackId，用于断言
+    // 播放行图标走 accent 变体（C1）。非该 query 时行为与原先完全一致。
+    const playingTrackId = new URLSearchParams(search).get('playing') ?? undefined
     return (
       <div className="page-wrap tracklist-page">
         <TrackList
@@ -38,6 +42,7 @@ export function PagePlaceholder(): ReactElement {
           sortBy={library.params.sortBy}
           order={library.params.order}
           onSortChange={library.setSort}
+          playingTrackId={playingTrackId}
         />
       </div>
     )
