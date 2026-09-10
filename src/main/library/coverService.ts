@@ -218,7 +218,7 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
 // scanService 接线辅助（T3 index.ts 组装时调用；本任务不改 scanService.ts / index.ts，留痕）
 // ---------------------------------------------------------------------------
 
-export function wireCoverPipeline(deps: ScanServiceDeps, cover: CoverService): void {
+export function wireCoverPipeline(deps: Pick<ScanServiceDeps, 'onCoverJob'>, cover: CoverService): void {
   deps.onCoverJob = (job) => cover.enqueue(job);
 }
 // T3 组装留痕（coversDropped 观测口径）：scan.log 汇总 coversDropped 时应汇合两个来源——

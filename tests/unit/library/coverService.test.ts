@@ -289,11 +289,11 @@ describe('coverService', () => {
 
   it('⑥ wireCoverPipeline：ScanServiceDeps.onCoverJob 注入 coverService.enqueue（T3 接线形态预演）', async () => {
     const ctx = makeService();
-    const deps: ScanServiceDeps = {};
+    const deps: Pick<ScanServiceDeps, 'onCoverJob'> = {};
     wireCoverPipeline(deps, ctx.service);
 
     // scanService 阶段 E 按 track 粒度投递 → wire 后直达 coverService 队列
-    (deps as { onCoverJob?: (j: CoverJob) => void }).onCoverJob!({
+    deps.onCoverJob!({
       albumId: ctx.albumId,
       source: 'embedded',
       bytes: await makeImage('jpeg'),
