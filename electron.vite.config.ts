@@ -3,7 +3,17 @@ import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  main: {},
+  main: {
+    // T2.2：scanner.worker 附加入口编译进 out/main（src/main/index.ts 暂不引用，T2.3 接线 ?nodeWorker）
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          'scanner.worker': resolve('src/main/library/scanner.worker.ts')
+        }
+      }
+    }
+  },
   preload: {},
   renderer: {
     resolve: {
