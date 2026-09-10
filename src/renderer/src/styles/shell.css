@@ -1,0 +1,617 @@
+/* Windy Concert · 应用 Shell 样式（T4.1）
+ *
+ * 来源与移植方式：本文件是 docs/design/mockups/mockup.css 的**壳层规则子集**，逐条对照搬运
+ * （注释标注来源行号），不是整文件拷贝——mockup.css 含页面态切换器、组件状态板、Track 表/行态、
+ * 专辑网格与详情页版式等非壳层内容，属设计验收工具或 T4.3~T4.7 范围，刻意不在此出现。
+ *
+ * 契约（setting-up-plan §3.7 UI 演进约定 + §4.3-8）：
+ *   · 色值 / 字号 / 字重 / 圆角 / 动效 / 壳层几何一律引用 var(--token)（唯一源 = styles/tokens.css）；
+ *   · mockup.css 中无 token 对应的间距与尺寸（如侧栏 padding 20px 12px、品牌标记 28px、搜索框宽
+ *     320px）按设计稿字面值保留——tokens.css 未定义这些档位，自造 token 反而偏离只读设计基线；
+ *   · 禁用 inline SVG / 图标 CDN / CSS mask：图标一律经 <Icon>（vendored lucide 资产）。
+ *
+ * 与既有样式的协调：main.tsx 的加载序为 styles/tokens.css → assets/main.css（其首行 @import
+ * base.css）→ App.tsx 的 styles/shell.css，故本文件最后加载，可覆盖 base.css 中 electron-vite
+ * 模板残留的 body 排版（Inter 字体栈、--ev-c-* 色）而不必改动 assets/** 的既有内容。
+ */
+
+/* ---------- 全局（mockup.css:7-55、102-130） ---------- */
+/* 说明：box-sizing / margin 归零 / ul 去点 已由 assets/base.css 提供，此处不重复。 */
+html {
+  min-width: 960px;
+  background: var(--bg-base);
+}
+
+body {
+  min-width: 960px;
+  min-height: 640px;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select {
+  color: inherit;
+  font: inherit;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+button:focus {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--text-tertiary);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* mockup.css:114-130 */
+.skip-link {
+  position: fixed;
+  z-index: var(--z-toast);
+  top: 8px;
+  left: 8px;
+  padding: 8px 12px;
+  transform: translateY(-140%);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--font-weight-semibold);
+  transition: transform var(--duration-feedback) var(--ease-out);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* ---------- 壳层几何（mockup.css:132-136、306-312） ---------- */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  height: 100vh;
+}
+
+.app-frame {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--playerbar-h);
+  background: var(--bg-base);
+}
+
+/* ---------- 侧栏（mockup.css:138-304） ---------- */
+.sidebar {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 20px 12px 12px;
+  overflow: hidden;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--divider);
+  /* 侧栏层级排版（mockup.css:144-149）：整栏小号、字距 .08em、大写。分组标题与品牌副标题继承之；
+     .brand-name 覆写 font-size/letter-spacing（仍继承 uppercase，与设计稿渲染一致，报告留痕）；
+     中文导航项不受 text-transform 影响（无大小写概念）。 */
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 22px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+}
+
+/* mockup.css:165-170 的 width/height 17px 交由 Icon 的 size 档承担（档位无 17，取 16）；
+   此处只保留色/层次语义，避免写出会被 inline style 覆盖的死声明。 */
+.brand-mark .library-icon {
+  opacity: 0.92;
+}
+
+.brand-name {
+  letter-spacing: 0.01em;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.brand-subtitle {
+  margin-top: 1px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nav-list,
+.playlist-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-link {
+  position: relative;
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  transition:
+    background-color var(--duration-feedback) var(--ease-standard),
+    color var(--duration-feedback) var(--ease-standard);
+}
+
+.nav-link:hover {
+  background: var(--row-hover);
+  color: var(--text-primary);
+}
+
+/* 活跃态由路由驱动（NavLink 自动输出 aria-current="page"），无底色高亮 + 左侧指示条。 */
+.nav-link[aria-current='page'] {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.nav-link[aria-current='page']::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -12px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+  content: '';
+}
+
+.nav-link[aria-current='page'] .library-icon {
+  opacity: 0.92;
+}
+
+.nav-badge {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebar-divider {
+  height: 1px;
+  margin: 18px 12px 16px;
+  background: var(--divider);
+}
+
+.sidebar-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 8px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sidebar-section-head button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-tertiary);
+}
+
+.sidebar-section-head button:hover {
+  background: var(--row-hover);
+  color: var(--text-primary);
+}
+
+.playlist-scroll {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-color: var(--text-tertiary) transparent;
+  scrollbar-width: thin;
+}
+
+/* 歌单行本体（.playlist-link / .playlist-dot，mockup.css:292-304）随 T6 歌单功能落地；
+   T4.1 的 .playlist-list 为空列表，仅需上面的共享 grid 规则。 */
+
+/* ---------- 顶栏（mockup.css:314-424） ---------- */
+.topbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.title-lockup {
+  min-width: 120px;
+}
+
+.eyebrow {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.page-title {
+  margin: 1px 0 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
+}
+
+.topbar-tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-box {
+  position: relative;
+  display: flex;
+  width: 320px;
+  height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-round);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  transition:
+    width 250ms var(--ease-standard),
+    border-color var(--duration-feedback) var(--ease-standard);
+}
+
+.search-box:focus-within {
+  width: 400px;
+  border-color: var(--accent);
+}
+
+.search-box input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.search-box input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.search-box kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.icon-button {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  transition:
+    background-color var(--duration-feedback) var(--ease-standard),
+    color var(--duration-feedback) var(--ease-standard),
+    transform var(--duration-feedback) var(--ease-out);
+}
+
+.icon-button:hover {
+  background: var(--row-hover);
+  color: var(--text-primary);
+}
+
+.icon-button:hover .library-icon {
+  opacity: 0.92;
+}
+
+.icon-button:active,
+.player-button:active {
+  transform: scale(0.97);
+}
+
+/* ---------- 主区（mockup.css:476-483） ---------- */
+/* 主区内容外框。T4.1 页面本体为占位，页内 .page-head / 列表 / 网格等版式随 T4.4 起按稿补入。 */
+.main-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-color: var(--text-tertiary) transparent;
+  scrollbar-width: thin;
+}
+
+.page-wrap {
+  max-width: 1600px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ---------- 封面（mockup.css:626-734 的壳层子集） ---------- */
+/* T4.1 仅需中性占位封面（PlayerBar）；色块封面与 256 档网格封面属 Cover 组件（T4.3）。 */
+.cover {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+}
+
+.cover--mini {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-mini-cover);
+}
+
+/* T4.1 新增（非 mockup 类）：占位期 PlayerBar 无曲目，设计稿的 cover--{night,chopin,…} 色块均绑定
+   具体曲目（属假数据），故复用 .cover 的中性底 + 弱化图标代替。T5.4 接入真实封面后本类整体移除。 */
+.cover--placeholder .library-icon {
+  opacity: 0.38;
+}
+
+/* ---------- 播放栏（mockup.css:1765-1942） ---------- */
+/* 偏离（报告留痕）：设计稿三列 minmax 最小宽 230/340/230（合计 800px）在 html min-width:960px
+   下主区仅 960-232=728px 宽，本身不可满足；改为 minmax(0, …) 保留 1.1:2:1 比例语义，使其在
+   设计最小视口下可容纳（右侧队列+音量区恰好 160px）。 */
+.player-bar {
+  z-index: var(--z-panel);
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+  padding: 0 16px;
+  border-top: 1px solid var(--divider);
+  background: var(--bg-base);
+}
+
+.player-track {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-copy {
+  min-width: 0;
+}
+
+.player-like {
+  margin-left: 2px;
+}
+
+.player-center {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.transport .icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+.player-button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text-primary);
+  color: var(--on-accent);
+  transition:
+    transform var(--duration-feedback) var(--ease-out),
+    background-color var(--duration-feedback) var(--ease-standard);
+}
+
+/* mockup.css:1849-1851 的 :hover 背景为字面量 #ffffff（tokens 无对应档），且 T4.1 控件为 disabled
+   永不触发 hover —— 故不移植，待 T5.4 引入真实播放态时再处理。 */
+.player-button .library-icon {
+  opacity: 1;
+}
+
+.scrub-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
+/* 进度/音量条：只保留轨道（--bg-input）。mockup.css:1877-1908 的 ::before 36% / ::after 滑块
+   是稿件演示值，占位期不伪造进度，故不移植；T5.4 按真实 position/volume 以 inline 宽度补回。 */
+.progress-bar {
+  position: relative;
+  height: 4px;
+  border-radius: var(--radius-round);
+  background: var(--bg-input);
+}
+
+.player-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.volume-control {
+  display: flex;
+  width: 120px;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-bar {
+  position: relative;
+  height: 4px;
+  flex: 1;
+  border-radius: var(--radius-round);
+  background: var(--bg-input);
+}
+
+/* ---------- 队列面板（mockup.css:1665-1763） ---------- */
+/* 常驻 DOM、关闭位（translateX(100%)）。开合状态类 `.queue-open`（mockup.css:1682-1684）与
+   开合入口属 T5.5，故不在此声明永不生效的规则。 */
+.queue-panel {
+  position: fixed;
+  z-index: var(--z-panel);
+  top: 0;
+  right: 0;
+  bottom: var(--playerbar-h);
+  display: flex;
+  width: var(--queue-w);
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--divider);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-float);
+  transform: translateX(100%);
+  transition: transform var(--duration-drawer) var(--ease-standard);
+}
+
+.queue-head {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--divider);
+}
+
+/* mockup.css 未给 .queue-head h2 声明字重（依赖 UA 的 h2 粗体 700）；assets/base.css 的
+   `* { font-weight: normal }` 会把该默认抹平，且 tokens 只有 400/600 两档，故取最接近的
+   semibold——偏离仅此一处，报告留痕。 */
+.queue-head h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.queue-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  scrollbar-color: var(--text-tertiary) transparent;
+  scrollbar-width: thin;
+}
+
+/* ---------- T4.1 占位期 disabled 态（设计稿未定义，留痕） ----------
+ * 依据：mockup.css 的按钮样本全为正常态（播放中 / 队列有内容），未提供 disabled 视觉。T4.1 的
+ * PlayerBar / QueuePanel / 侧栏新建入口按要求 disabled，若不给视觉区分则「看起来可点、实则不可用」。
+ * 实现：图标是 vendored SVG（<img>），描边色已烘焙进各变体文件（music-2 => stroke #ffffff），CSS
+ * color 对 <img> 无效——故 disabled 只能以 opacity 表达，取 0.25（= --text-disabled 的白度，
+ * 与 base.css:50-51 记载的「disabled / 不可播 → .25」语义一致）。
+ * 顺序约束：必须排在上方 .icon-button:hover .library-icon（同为 (0,2,1)）之后，后者才被覆盖。
+ * T5.4 / T5.5 / T6 接入真实状态后本块整体移除。 */
+.icon-button:disabled,
+.sidebar-section-head button:disabled {
+  cursor: default;
+}
+
+.icon-button:disabled .library-icon,
+.sidebar-section-head button:disabled .library-icon {
+  opacity: 0.25;
+}
+
+.icon-button:disabled:hover,
+.sidebar-section-head button:disabled:hover {
+  background: transparent;
+}
+
+/* 播放主按钮：保留设计稿的圆形剪影，仅把 --text-primary 白圈替换为 disabled 白度（rgba 白 .25），
+   其上的 play--on-accent（黑）图标维持 opacity 1 仍清晰可辨。 */
+.player-button:disabled {
+  cursor: default;
+  background: var(--text-disabled);
+}

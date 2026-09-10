@@ -1,14 +1,11 @@
 @import './base.css';
 
-body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background-image: url('./wavy-lines.svg');
-  background-size: cover;
-  user-select: none;
-}
+/* T4.1：模板给 body 的「居中展示」布局（flex 居中 + wavy-lines 背景图 + 全局禁选）与 #root 的
+ * flex 居中 + margin-bottom: 80px，均与第一个全视口应用 Shell 冲突，已整体移除——body 的
+ * margin/overflow/排版与 #root 的布局现由 styles/shell.css 按 tokens 统一设定（.app-shell 自持
+ * height: 100vh，根节点无需任何布局声明），故此处不再保留任何 body/#root 规则。
+ * 下方模板装饰类（.logo/.creator/.text/.tip/.react/.ts/.actions/.versions）是 T3.3 清理模板自检 UI
+ * 后遗留的孤儿，按 AGENTS「不删预先存在的死代码除非被要求」保留并在 T4.1 报告留痕，本任务不重构。 */
 
 code {
   font-weight: 600;
@@ -24,14 +21,6 @@ code {
     Liberation Mono,
     monospace;
   font-size: 85%;
-}
-
-#root {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  margin-bottom: 80px;
 }
 
 .logo {
