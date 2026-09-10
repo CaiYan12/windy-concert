@@ -736,7 +736,7 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
   > 执行备注(2026-09-10): 四 repo 交付（playlistRepo PlaylistRow / folderRepo FolderRow 自定类型留痕；removeTrack 删最小 position 一次出现、留洞语义自洽留痕；historyRepo tracks 侧 UPDATE 收口自身 prepared 留痕；normalizePath 内部函数）。listRecent 按计划原文 MAX(played_at) 实现，秒级并列边界注释留痕（质量审查 I1：同曲同秒两次播放会出重复行，Phase 2 改 MAX(id)/tiebreak 必修——延后决策已留痕）。15 新单测，npm test 46 passed 零回归、typecheck 0 错误。质量审查 APPROVED（Minor 跟进项留档：UNC 主机段大小写归一、根路径 C:\→c: 语义、空串无校验、folder 测试断言 2/4 形态、addTracks FK 报错信息、reorder([]) 无守卫——收尾时记入 README 遗留段）。
 - [x] **T1.5 shared 类型**：`src/shared/types.ts` 写全 §3.6 列出的 TrackRow/AlbumCard/ArtistCard/Settings/ScanProgress/搜索结果类型。
   > 执行备注(2026-09-10): 本任务提前至 T1.2 前执行（T1.2~T1.4 的 repo 返回类型依赖 TrackRow，先立契约避免类型空窗与返工；范围不变仅顺序调整，留痕）。四接口逐字 + ScanProgress/CoversReady/SearchResult/PlaylistSummary/SortKey/SortOrder；PlaylistSummary { id; name; trackCount } 为计划未定义形状的最小合理决定（搜索下拉所需，注释留痕）；@shared 别名接线：electron.vite.config.ts renderer 段 + tsconfig.web.json paths（baseUrl 实测为 "."，基准 src/shared/*，纠正了派发指令中的 "../../" 臆测）+ tsconfig.node.json include 补 src/shared；main/preload 侧无别名，以相对路径引入 shared（质量审查 Minor 留档）；typecheck 0 错误，npm test 4 passed 无回归；质量审查 APPROVED（TrackRow 为 §3.6 节选定稿，DDL 其余列如 composer/codec/channels 留待消费方扩展时补）。
-- [ ] **T1.6 查询单测**（`tests/unit/db/*.test.ts`，全部用 `:memory:` 库 + 手工 INSERT 造数）：
+- [x] **T1.6 查询单测**（`tests/unit/db/*.test.ts`，全部用 `:memory:` 库 + 手工 INSERT 造数）：
   - FTS 触发器：INSERT/UPDATE title/DELETE 后 `tracks_fts` 行数与内容同步；
   - trigram：中文「七里」命中「七里香」、英文大小写不敏感；
   - 短查询回退路径的 LIKE 行为；
@@ -744,6 +744,7 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
   - `listRecent` 去重：同曲目两次播放只返回最新一条；
   - `reorder` 重排后 position 连续无冲突；
   - `setFavorite` 写 favorited_at。
+  > 执行备注(2026-09-10): 新增 tests/unit/db/query-behavior.test.ts（8 用例：FTS INSERT 同步含 COALESCE 空串、FTS DELETE 同步、trigram 中英行为、LIKE 语义背书 ×2、专辑 UNIQUE 约束 raw 角度 ×2）；其余五场景（listRecent 去重/reorder 连续/setFavorite/复合冲突合并/FTS UPDATE 同步）由既有 repo 测试覆盖，映射表见该文件头注释。**实测留痕**：trigram 存在 3 字符下限，「七里」（2 字符）MATCH 0 行——任务文中「七里命中七里香」措辞与 §3.5d 自身的 trigram 下限回退依据矛盾，按 SQLite 实际行为断言并留痕（§3.5d 设计自洽，无需改码）。执行方式降级留痕：本任务派发子代理遭遇 429 频率限制（至 13:44 UTC+8），子代理已完成测试文件后中断，主会话按「执行者须知」备选的 executing-plans 检查点流程接手完成自检（场景映射/import 边界审计：数据层仅依赖 better-sqlite3 类型、node:crypto、相对路径 shared/types 与内部 rowMapper，零 Electron 零 service 引用）与提交；两阶段审查由主会话自检替代，建议频率限制解除后补一轮独立审查。Phase 1 验收：npm test 54 passed（数据层用例 53，≥12 达标）、typecheck 0 错误、七 repo 全部有覆盖。
 
 **预期产出**：数据层完成，全部 SQL 行为有单测背书。
 
