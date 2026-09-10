@@ -131,12 +131,10 @@ CREATE TRIGGER tracks_fts_ai AFTER INSERT ON tracks BEGIN
   VALUES (new.rowid, new.title, COALESCE(new.artist_string,''), new.album_title);
 END;
 CREATE TRIGGER tracks_fts_ad AFTER DELETE ON tracks BEGIN
-  INSERT INTO tracks_fts(tracks_fts, rowid, title, artist, album)
-  VALUES ('delete', old.rowid, old.title, COALESCE(old.artist_string,''), old.album_title);
+  DELETE FROM tracks_fts WHERE rowid = old.rowid;
 END;
 CREATE TRIGGER tracks_fts_au AFTER UPDATE OF title, artist_string, album_title ON tracks BEGIN
-  INSERT INTO tracks_fts(tracks_fts, rowid, title, artist, album)
-  VALUES ('delete', old.rowid, old.title, COALESCE(old.artist_string,''), old.album_title);
+  DELETE FROM tracks_fts WHERE rowid = old.rowid;
   INSERT INTO tracks_fts(rowid, title, artist, album)
   VALUES (new.rowid, new.title, COALESCE(new.artist_string,''), new.album_title);
 END;

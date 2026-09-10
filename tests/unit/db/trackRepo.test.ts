@@ -208,11 +208,7 @@ describe('trackRepo', () => {
     expect(composer).toBe('Composer Z');
   });
 
-  // 被 T1.1 触发器缺陷阻断（见 PR 备注）：tracks_fts_au / tracks_fts_ad 对「普通 fts5 表」
-  // 误用了 contentless 表的 'delete' 特殊 INSERT 命令（INSERT INTO tracks_fts(tracks_fts, rowid, ...)
-  // VALUES('delete', ...)），运行时抛 "SQL logic error"。普通 fts5 表删除应改用
-  // `DELETE FROM tracks_fts WHERE rowid = old.rowid`。migrations/** 在本任务冻结，故跳过，待 T1.1 修复触发器。
-  it.skip('updateAfterParse 更新 title 应同步 FTS（被 T1.1 触发器缺陷阻断）', () => {
+  it('updateAfterParse 更新 title 应同步 FTS（新值命中、旧值消失）', () => {
     current = setup();
     const { repo, db } = current;
     repo.createMany([track({ id: 'u', title: 'Alpha Old', albumTitle: 'Album A' })]);
@@ -221,6 +217,10 @@ describe('trackRepo', () => {
       .prepare(`SELECT count(*) c FROM tracks_fts WHERE tracks_fts MATCH 'Zephyr'`)
       .get() as { c: number };
     expect(matchNew.c).toBe(1);
+    const matchOld = db
+      .prepare(`SELECT count(*) c FROM tracks_fts WHERE tracks_fts MATCH 'Alpha'`)
+      .get() as { c: number };
+    expect(matchOld.c).toBe(0);
   });
 
   it('updateAfterParse 传入空对象零改动', () => {
