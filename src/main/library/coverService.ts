@@ -7,6 +7,7 @@
 //     onCoverReady（covers:ready 的进程内发射点，IPC 接线归 T3）。
 //   失败路径：该 albumId 标 failed（状态保持 pending 可重试），不落库；worker 'error' 事件与
 //     异常同样只标 failed，不击穿 service（worker 实例失效，下一任务重建）。
+//   观测：droppedCount 只读计数（去重丢弃 + 失败归一 failed），供 T3 汇总 scan.log 的 coversDropped。
 //
 // 接线决定留痕（不破坏既有 9 用例的最小方案）：不改 scanService.ts / index.ts——本文件提供
 // wireCoverPipeline(deps, coverService)，T3 组装时对 ScanServiceDeps 注入 onCoverJob = cover.enqueue；
@@ -48,6 +49,8 @@ export interface CoverService {
   enqueue(job: CoverJob): void;
   /** 测试辅助（留痕）：等待队列排空且当前任务落库完成；生产路径不依赖。 */
   flush(): Promise<void>;
+  /** 只读观测计数：封面被丢弃而未落库的次数 = 去重丢弃 + 失败归一 failed（合计口径，留痕）。 */
+  readonly droppedCount: number;
 }
 
 /** worker 成功回执的归一形态。 */
@@ -76,6 +79,12 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
   const drainWaiters: Array<() => void> = [];
   let inFlight = false;
   let worker: CoverWorkerLike | null = null;
+
+  // 观测计数（coversDropped 观测断层修复）：两类"未落库即丢失"分开累计、合计暴露。
+  // 口径留痕：dedupDropped = 去重丢弃（enqueue 时已 succeeded + pump 排空时跳过 succeeded）；
+  // failedNormalized = 顶部 entry 失败归一 failed（worker failed 回执 / 'error' 事件归一）。
+  let dedupDropped = 0;
+  let failedNormalized = 0;
 
   // -------------------------------------------------------------------------
   // worker 管理
@@ -126,7 +135,10 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
     if (inFlight) return;
     while (queue.length > 0) {
       const job = queue.shift() as CoverJob;
-      if (albumState.get(job.albumId) === 'succeeded') continue; // 首个成功者胜出：同专辑后续任务丢弃
+      if (albumState.get(job.albumId) === 'succeeded') {
+        dedupDropped++; // 首个成功者胜出：同专辑后续任务丢弃
+        continue;
+      }
       inFlight = true;
       void runJob(job).finally(() => {
         inFlight = false;
@@ -152,6 +164,7 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
       });
       if (!result.ok) {
         // 失败路径：不落库；状态保持 pending，允许同 album 下一 job 再试（首个成功者胜出语义）。
+        failedNormalized++; // 失败归一 failed 计数（worker failed 回执 / 'error' 归一）
         return;
       }
       coverRepo.insertCover({
@@ -178,7 +191,10 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
   // -------------------------------------------------------------------------
 
   function enqueue(job: CoverJob): void {
-    if (albumState.get(job.albumId) === 'succeeded') return; // 已成功：后续同 album 任务直接丢弃
+    if (albumState.get(job.albumId) === 'succeeded') {
+      dedupDropped++; // 已成功：后续同 album 任务直接丢弃
+      return;
+    }
     albumState.set(job.albumId, 'pending');
     queue.push(job);
     pump();
@@ -189,7 +205,13 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
     return new Promise<void>((resolve) => drainWaiters.push(resolve));
   }
 
-  return { enqueue, flush };
+  return {
+    enqueue,
+    flush,
+    get droppedCount() {
+      return dedupDropped + failedNormalized;
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -199,3 +221,7 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
 export function wireCoverPipeline(deps: ScanServiceDeps, cover: CoverService): void {
   deps.onCoverJob = (job) => cover.enqueue(job);
 }
+// T3 组装留痕（coversDropped 观测口径）：scan.log 汇总 coversDropped 时应汇合两个来源——
+//   scanService.coversDropped（未注入 onCoverJob 时的扫描侧丢弃计数）
+//   + coverService.droppedCount（封面队列侧：去重丢弃 + 失败归一 failed）。
+// 分开列示还是合计为单一 coversDropped 字段，由 T3 决定口径。

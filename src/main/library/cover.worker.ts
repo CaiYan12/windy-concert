@@ -11,6 +11,8 @@
 //     为 folder 来源的实际命中文件路径（embedded 为 null）——service 需要它落 cover_art.original_path
 //   - 失败回执：{type:'failed', coverId, reason}——processCoverMessage 内全量 catch，不抛死 worker；
 //     未知消息类型无 coverId 可路由，静默忽略（协议最小化，与 scanner.worker error 回执差异留痕）
+//   - 清理策略：三档写入中途失败时，best-effort 删除该次已创建的输出目录（缓存可重建，半成品即弃，
+//     避免残留目录被误当作完整封面）。
 import { parentPort } from 'node:worker_threads';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
@@ -97,15 +99,28 @@ export async function processCoverMessage(msg: CoverWorkerInbound): Promise<Cove
       input = await fsp.readFile(originalPath);
     }
 
-    const metadata = await sharp(input).metadata();
+    // 单实例复用：先 metadata 后 clone 三次 resize，省两次完整解码
+    const source = sharp(input);
+    const metadata = await source.metadata();
 
     const outDir = path.join(coversDir, coverId);
-    await fsp.mkdir(outDir, { recursive: true });
-    for (const size of OUTPUT_SIZES) {
-      await sharp(input)
-        .resize(size, size, { fit: 'inside' })
-        .jpeg({ quality: JPEG_QUALITY })
-        .toFile(path.join(outDir, `${size}.jpg`));
+    let outDirCreated = false;
+    try {
+      await fsp.mkdir(outDir, { recursive: true });
+      outDirCreated = true;
+      for (const size of OUTPUT_SIZES) {
+        await source
+          .clone()
+          .resize(size, size, { fit: 'inside' })
+          .jpeg({ quality: JPEG_QUALITY })
+          .toFile(path.join(outDir, `${size}.jpg`));
+      }
+    } catch (err) {
+      // 半成品即弃：仅在该次处理已创建目录后失败时清理（best-effort，不覆盖原始失败原因）
+      if (outDirCreated) {
+        await fsp.rm(outDir, { recursive: true, force: true }).catch(() => {});
+      }
+      throw err;
     }
 
     // mime 取原图 metadata：sharp format → image/*；embedded 缺 format 时回退入口 mime

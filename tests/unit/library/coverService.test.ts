@@ -3,7 +3,7 @@
 // processCoverMessage（真实 sharp + 真实 fs 探测，不经 worker_threads），保证 folder 顺序/三档输出
 // 的断言落在真实实现上；coversDir 用临时目录；db 用 :memory:；专辑行经 albumRepo 直接造数。
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -23,7 +23,7 @@ import {
   type CoverWorkerInbound,
   type CoverWorkerOutbound,
 } from '../../../src/main/library/cover.worker';
-import type { CoverJob } from '../../../src/main/library/scanService';
+import type { CoverJob, ScanServiceDeps } from '../../../src/main/library/scanService';
 
 // ---------------------------------------------------------------------------
 // 伪 worker（T2.6 可测性接缝）：同协议 EventEmitter 形态
@@ -126,6 +126,7 @@ function makeService(workerLike?: CoverWorkerLike, over: Partial<CoverServiceDep
 
 afterEach(() => {
   while (openDbs.length) openDbs.pop()?.close();
+  while (tempDirs.length) rmSync(tempDirs.pop()!, { recursive: true, force: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -201,9 +202,10 @@ describe('coverService', () => {
     });
     await ctx.service.flush();
 
-    // 仅首个任务进入 worker；落库与回执各一次
+    // 仅首个任务进入 worker；落库与回执各一次；第二任务计去重丢弃
     expect(ctx.worker.sent).toHaveLength(1);
     expect(ctx.ready).toHaveLength(1);
+    expect(ctx.service.droppedCount).toBe(1);
     expect(
       (ctx.db.prepare('SELECT COUNT(*) AS c FROM cover_art').get() as { c: number }).c,
     ).toBe(1);
@@ -216,6 +218,7 @@ describe('coverService', () => {
     ctx.service.enqueue({ albumId: ctx.albumId, source: 'embedded', bytes, mime: 'image/jpeg' });
     await ctx.service.flush();
     expect(ctx.ready).toHaveLength(0);
+    expect(ctx.service.droppedCount).toBe(1); // 首任务失败归一 failed 计数
     expect(
       (ctx.db.prepare('SELECT COUNT(*) AS c FROM cover_art').get() as { c: number }).c,
     ).toBe(0);
@@ -245,40 +248,49 @@ describe('coverService', () => {
     }
   });
 
-  it('⑤ worker error 事件 → 该 albumId 标 failed 不击穿 service，重建后下一任务可成功', async () => {
-    const ctx = makeService(new CrashingWorker());
+  it('⑤ worker error 后同一 service 内重建实例，下一任务成功落库', async () => {
+    // factory 按序返回：首次 CrashingWorker（触发 'error'），ensureWorker 重建时交付 RealLogicWorker。
+    // 留痕：原"独立双 service 恢复"用例已并入本用例——重建路径由同一 service 内驱动，更贴近
+    // 生产语义（service 实例存活，仅 worker 实例失效重建），独立双 service 形态不再保留。
+    const real = new RealLogicWorker();
+    const workers = [new CrashingWorker(), real];
+    const ctx = makeService(real, { workerFactory: () => workers.shift()! });
+
     ctx.service.enqueue({ albumId: ctx.albumId, source: 'embedded', bytes: await makeImage('jpeg') });
     await ctx.service.flush();
     expect(ctx.ready).toHaveLength(0);
+    expect(real.sent).toHaveLength(0); // 崩溃实例未交付任务
     expect(
       (ctx.db.prepare('SELECT COUNT(*) AS c FROM cover_art').get() as { c: number }).c,
     ).toBe(0);
+    expect(ctx.service.droppedCount).toBe(1); // 'error' 归一 failed 计数
 
-    // service 存活：换回真实逻辑伪 worker（模拟实例重建），同 album 重试成功
-    const recovered = new RealLogicWorker();
-    const ready2: string[] = [];
-    const service2 = createCoverService({
-      db: ctx.db,
-      coversDir: ctx.coversDir,
-      workerFactory: () => recovered,
-      onCoverReady: (p) => ready2.push(p.coverId),
-    });
-    service2.enqueue({
+    // 同一 service：下一任务触发 ensureWorker 重建 → factory 返回 RealLogicWorker，成功落库
+    ctx.service.enqueue({
       albumId: ctx.albumId,
       source: 'embedded',
       bytes: await makeImage('jpeg', 40, 40),
     });
-    await service2.flush();
-    expect(ready2).toHaveLength(1);
+    await ctx.service.flush();
+    expect(real.sent).toHaveLength(1);
+    expect(ctx.ready).toHaveLength(1);
+    const coverId = ctx.ready[0]!;
     expect(
       (ctx.db.prepare('SELECT COUNT(*) AS c FROM cover_art').get() as { c: number }).c,
     ).toBe(1);
+    const album = ctx.db.prepare('SELECT cover_id FROM albums WHERE id = ?').get(ctx.albumId) as {
+      cover_id: string | null;
+    };
+    expect(album.cover_id).toBe(coverId);
+    for (const size of [64, 256, 512]) {
+      expect(existsSync(path.join(ctx.coversDir, coverId, `${size}.jpg`))).toBe(true);
+    }
   });
 
   it('⑥ wireCoverPipeline：ScanServiceDeps.onCoverJob 注入 coverService.enqueue（T3 接线形态预演）', async () => {
     const ctx = makeService();
-    const deps = { onCoverJob: undefined as CoverJob[] | undefined };
-    wireCoverPipeline(deps as never, ctx.service);
+    const deps: ScanServiceDeps = {};
+    wireCoverPipeline(deps, ctx.service);
 
     // scanService 阶段 E 按 track 粒度投递 → wire 后直达 coverService 队列
     (deps as { onCoverJob?: (j: CoverJob) => void }).onCoverJob!({
