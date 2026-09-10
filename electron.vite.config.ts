@@ -4,12 +4,12 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    // T2.2：scanner.worker 附加入口编译进 out/main（src/main/index.ts 暂不引用，T2.3 接线 ?nodeWorker）
     build: {
       rollupOptions: {
+        // T2.3：scanner.worker 改由 scanService 内 `?nodeWorker` 导入编译（electron-vite workerPlugin
+        // 自动 emit 独立 chunk），删除原附加入口条目以避免双份打包。
         input: {
-          index: resolve('src/main/index.ts'),
-          'scanner.worker': resolve('src/main/library/scanner.worker.ts') // T2.3 改 ?nodeWorker 接线后须删除此 input 条目，避免双份打包
+          index: resolve('src/main/index.ts')
         }
       }
     }

@@ -51,6 +51,9 @@ export interface TrackInsert {
  * 只有本接口声明的列可被更新（固定白名单，见 AFTER_PARSE_MAP）。
  */
 export interface TrackParseUpdate {
+  // T2.3 新增：changed 曲目重新解析后内容可能换艺人/专辑（§3.5a 阶段 D 需同步 artist_id/album_id）。
+  artistId?: number;
+  albumId?: number;
   title?: string;
   artistString?: string | null;
   albumArtist?: string;
@@ -77,6 +80,16 @@ export interface ListSongsParams {
   order?: SortOrder;
   offset?: number;
   limit?: number;
+}
+
+/** T2.3 新增：阶段 B 对账所需的曲目身份行（listIdentityAll 返回；SQL 收口在 repo）。 */
+export interface TrackIdentity {
+  id: string;
+  filePath: string;
+  fileSize: number;
+  fileMtime: number;
+  fileName: string;
+  status: TrackStatus;
 }
 
 export interface FindByIdentityOpts {
@@ -114,6 +127,8 @@ function resolveSortColumn(key: SortKey): string {
 // ---------------------------------------------------------------------------
 
 const AFTER_PARSE_MAP: Array<[keyof TrackParseUpdate, string, (v: unknown) => unknown]> = [
+  ['artistId', 'artist_id', (v) => v], // T2.3：changed 内容变更后重挂主艺人
+  ['albumId', 'album_id', (v) => v], // T2.3：changed 内容变更后重挂专辑
   ['title', 'title', (v) => v],
   ['artistString', 'artist_string', (v) => v],
   ['albumArtist', 'album_artist', (v) => v],
@@ -154,8 +169,12 @@ export interface TrackRepo {
   createMany(tracks: TrackInsert[]): void;
   listSongs(params: ListSongsParams): TrackRow[];
   findById(id: string): TrackRow | null;
+  // T2.3 新增：全量身份对账行（§3.5a 阶段 B 主进程对账数据源；SQL 收口在 repo，留痕）。
+  listIdentityAll(): TrackIdentity[];
   updateAfterParse(id: string, parsed: TrackParseUpdate): void;
-  updateFileIdentity(id: string, identity: { filePath: string }): void;
+  // T2.3 扩签名：adopt 只改 filePath；changed 补 fileSize/fileMtime（路径不变三元组变）。
+  // 三键皆可省略；全部省略为零改动 no-op。
+  updateFileIdentity(id: string, identity: { filePath?: string; fileSize?: number; fileMtime?: number }): void;
   setStatus(ids: string[], status: TrackStatus): void;
   markMissing(exceptPathsLower: string[]): void;
   // V1.3 升格项：返回全部命中（0 命中返回空数组）。唯一性判定交给 service 层（T2.3）——
@@ -170,6 +189,9 @@ export interface TrackRepo {
   incrementPlay(id: string): void;
   listByIds(ids: string[]): TrackRow[];
 }
+
+/** updateFileIdentity 的可选 patch（T2.3 扩签名）。 */
+export type TrackFileIdentityPatch = { filePath?: string; fileSize?: number; fileMtime?: number };
 
 export function createTrackRepo(db: Database): TrackRepo {
   // 固定 arity 的 prepared statements 在工厂内创建一次。
@@ -188,6 +210,12 @@ export function createTrackRepo(db: Database): TrackRepo {
   `);
 
   const stmtFindById = db.prepare(`${SELECT_FROM} WHERE tracks.id = ?`);
+  // T2.3 新增：阶段 B 对账数据源（全量曲目身份行）。
+  const stmtListIdentityAll = db.prepare(`
+    SELECT id, file_path AS filePath, file_size AS fileSize, file_mtime AS fileMtime,
+           file_name AS fileName, status
+    FROM tracks
+  `);
   // favorited_at 用 SQL 表达式 datetime('now')/NULL，不能走 bind（bind 会把 SQL 当字符串）。
   const stmtFavOn = db.prepare(`
     UPDATE tracks SET favorite = 1, favorited_at = datetime('now') WHERE id = ?
@@ -199,9 +227,6 @@ export function createTrackRepo(db: Database): TrackRepo {
     UPDATE tracks
     SET play_count = play_count + 1, last_played_at = datetime('now')
     WHERE id = ?
-  `);
-  const stmtUpdateFileIdentity = db.prepare(`
-    UPDATE tracks SET file_path = ? WHERE id = ?
   `);
   const stmtUpdateAfterParse = (cols: string[]) =>
     db.prepare(`
@@ -283,6 +308,15 @@ export function createTrackRepo(db: Database): TrackRepo {
     return rows.map(mapRow);
   }
 
+  // T2.3：updateFileIdentity 改为三键可选 patch（固定白名单动态 SET，列名硬编码、值走 bind）。
+  // SET 组合按列名缓存 prepared（组合数有限：filePath/fileSize/fileMtime 共 ≤8 种）。
+  const FILE_IDENTITY_COLS: Array<[keyof TrackFileIdentityPatch, string]> = [
+    ['filePath', 'file_path'],
+    ['fileSize', 'file_size'],
+    ['fileMtime', 'file_mtime'],
+  ];
+  const identityStmtCache = new Map<string, Statement>();
+
   function findById(id: string): TrackRow | null {
     const row = stmtFindById.get(id) as RawTrackRow | undefined;
     return row ? mapRow(row) : null;
@@ -302,8 +336,27 @@ export function createTrackRepo(db: Database): TrackRepo {
     stmtUpdateAfterParse(sets).run(bind);
   }
 
-  function updateFileIdentity(id: string, identity: { filePath: string }): void {
-    stmtUpdateFileIdentity.run(identity.filePath, id);
+  function listIdentityAll(): TrackIdentity[] {
+    return stmtListIdentityAll.all() as TrackIdentity[];
+  }
+
+  function updateFileIdentity(id: string, identity: TrackFileIdentityPatch): void {
+    const sets: string[] = [];
+    const bind: Record<string, unknown> = { id };
+    for (const [key, col] of FILE_IDENTITY_COLS) {
+      if (identity[key] !== undefined) {
+        sets.push(`${col} = @${col}`);
+        bind[col] = identity[key];
+      }
+    }
+    if (sets.length === 0) return; // 空 patch → 零改动
+    const cacheKey = sets.join(', ');
+    let stmt = identityStmtCache.get(cacheKey);
+    if (!stmt) {
+      stmt = db.prepare(`UPDATE tracks SET ${cacheKey} WHERE id = @id`);
+      identityStmtCache.set(cacheKey, stmt);
+    }
+    stmt.run(bind);
   }
 
   function setStatus(ids: string[], status: TrackStatus): void {
@@ -422,6 +475,7 @@ export function createTrackRepo(db: Database): TrackRepo {
     createMany,
     listSongs,
     findById,
+    listIdentityAll,
     updateAfterParse,
     updateFileIdentity,
     setStatus,
