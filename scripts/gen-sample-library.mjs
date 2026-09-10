@@ -173,7 +173,6 @@ function main() {
   let i = 1; // 全局文件序号，从 1 计
   let files = 0;
   let totalBytes = 0;
-  let dirCount = 1; // 含 out 根目录
   let artistCount = 0;
   let albumCount = 0;
   const fixtureSizes = Object.fromEntries(
@@ -181,10 +180,15 @@ function main() {
   );
 
   for (const group of plan) {
-    const dir = path.join(out, group.artist, group.album);
+    const artistDir = path.join(out, group.artist);
+    if (!existsSync(artistDir)) {
+      mkdirSync(artistDir);
+      artistCount++;
+    }
+    const dir = path.join(artistDir, group.album);
     if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-      dirCount++;
+      mkdirSync(dir);
+      albumCount++;
     }
     for (let k = 0; k < group.files; k++, i++) {
       const isMp3 = i % 2 === 1; // 奇数 → mp3 槽，偶数 → flac 槽
@@ -204,7 +208,7 @@ function main() {
   console.log('========== 生成完成 ==========');
   console.log(`输出目录 : ${out}`);
   console.log(`生成文件 : ${files}（预期 ${args.count}）`);
-  console.log(`目录数   : ${dirCount}（1 根 + 艺术家 + 专辑）`);
+  console.log(`目录数   : ${1 + artistCount + albumCount}（1 根 + ${artistCount} 艺术家 + ${albumCount} 专辑）`);
   console.log(`总字节数 : ${totalBytes} B (${(totalBytes / 1024 ** 2).toFixed(2)} MB)`);
   console.log(`耗时     : ${seconds} s`);
   if (files !== args.count) fail(`生成文件数 ${files} 与预期 ${args.count} 不一致`);

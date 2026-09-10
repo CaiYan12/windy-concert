@@ -307,7 +307,6 @@ describe('scanService', () => {
         ctx.worker.emit('message', {
           type: 'batch',
           parsed: [parsedTrack('D:/new/dup.mp3', { title: 'Dup New' })],
-          done: 1,
           skipped: [],
         } satisfies WorkerOutbound);
         ctx.worker.emit('message', { type: 'done', total: 1, skipped: [] } satisfies WorkerOutbound);
@@ -424,7 +423,6 @@ describe('scanService', () => {
         ctx.worker.emit('message', {
           type: 'batch',
           parsed: [parsedTrack('D:/music/a1.mp3', { title: 'Song 1' })],
-          done: 1,
           skipped: [],
         } satisfies WorkerOutbound);
         ctx.worker.emit('message', { type: 'done', total: 1, skipped: [] } satisfies WorkerOutbound);
@@ -473,7 +471,6 @@ describe('scanService', () => {
         ctx.worker.emit('message', {
           type: 'batch',
           parsed: [parsedTrack('D:/music/dup.mp3'), parsedTrack('D:/music/dup.mp3', { title: 'Dup 2' })],
-          done: 2,
           skipped: [],
         } satisfies WorkerOutbound);
       }
@@ -493,7 +490,6 @@ describe('scanService', () => {
         ctx.worker.emit('message', {
           type: 'batch',
           parsed: [parsedTrack('D:/music/dup.mp3')],
-          done: 1,
           skipped: [],
         } satisfies WorkerOutbound);
         ctx.worker.emit('message', { type: 'done', total: 1, skipped: [] } satisfies WorkerOutbound);
@@ -540,7 +536,6 @@ describe('scanService', () => {
               artistString: null, // 主艺人回退'未知艺术家'，provenance 落 default
             }),
           ],
-          done: 1,
           skipped: [],
         } satisfies WorkerOutbound);
         ctx.worker.emit('message', { type: 'done', total: 1, skipped: [] } satisfies WorkerOutbound);
@@ -580,7 +575,6 @@ describe('scanService', () => {
               artistString: null,
             }),
           ],
-          done: 1,
           skipped: [],
         } satisfies WorkerOutbound);
         ctx.worker.emit('message', { type: 'done', total: 1, skipped: [] } satisfies WorkerOutbound);
