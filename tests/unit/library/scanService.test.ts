@@ -499,4 +499,96 @@ describe('scanService', () => {
     const summary = await ctx.service.scan();
     expect(summary.parsed).toBe(1);
   });
+
+  // -------------------------------------------------------------------------
+  // T2.5 provenance 写入（F2-6）
+  // -------------------------------------------------------------------------
+
+  it('⑩ 全标签曲目 → meta_provenance 全 embedded（cover 有 picture 亦为 embedded）', async () => {
+    const ctx = makeService();
+    ctx.worker.responder = standardResponder(ctx); // a1.mp3：tags 全 true + picture
+    await ctx.service.scan();
+
+    const row = ctx.db
+      .prepare("SELECT meta_provenance FROM tracks WHERE file_path = 'D:/music/a1.mp3'")
+      .get() as { meta_provenance: string };
+    expect(row.meta_provenance).toBe(
+      '{"title":"embedded","artist":"embedded","album":"embedded","albumArtist":"embedded","cover":"embedded"}',
+    );
+  });
+
+  it('⑪ 零标签曲目 → title=filename、artist/album/albumArtist=default、cover=folder', async () => {
+    const ctx = makeService();
+    ctx.worker.responder = (msg) => {
+      if (msg.type === 'stat') {
+        ctx.worker.emit('message', {
+          type: 'stat',
+          files: [statFile('D:/music/bare.mp3')],
+          skipped: [],
+        } satisfies WorkerOutbound);
+      } else if (msg.type === 'parse') {
+        ctx.worker.emit('message', {
+          type: 'batch',
+          parsed: [
+            parsedTrack('D:/music/bare.mp3', {
+              tags: { title: false, artist: false, album: false, albumArtist: false },
+              artistString: null, // 主艺人回退'未知艺术家'，provenance 落 default
+            }),
+          ],
+          done: 1,
+          skipped: [],
+        } satisfies WorkerOutbound);
+        ctx.worker.emit('message', { type: 'done', total: 1, skipped: [] } satisfies WorkerOutbound);
+      }
+    };
+    await ctx.service.scan();
+
+    const row = ctx.db
+      .prepare("SELECT meta_provenance FROM tracks WHERE file_path = 'D:/music/bare.mp3'")
+      .get() as { meta_provenance: string };
+    expect(row.meta_provenance).toBe(
+      '{"title":"filename","artist":"default","album":"default","albumArtist":"default","cover":"folder"}',
+    );
+  });
+
+  it('⑫ changed 重解析 → provenance 随新解析结果刷新（embedded → filename/folder）', async () => {
+    const ctx = makeService();
+    ctx.worker.responder = standardResponder(ctx); // 首扫 a1.mp3：全标签 + picture
+    await ctx.service.scan();
+
+    // 二扫：mtime 变化 → changed；标签全部丢失、picture 移除
+    ctx.worker.responder = (msg) => {
+      if (msg.type === 'stat') {
+        ctx.worker.emit('message', {
+          type: 'stat',
+          files: [statFile('D:/music/a1.mp3', 100, 2000)],
+          skipped: [],
+        } satisfies WorkerOutbound);
+      } else if (msg.type === 'parse') {
+        ctx.worker.emit('message', {
+          type: 'batch',
+          parsed: [
+            parsedTrack('D:/music/a1.mp3', {
+              title: 'Song 1',
+              picture: null,
+              tags: { title: false, artist: false, album: false, albumArtist: false },
+              artistString: null,
+            }),
+          ],
+          done: 1,
+          skipped: [],
+        } satisfies WorkerOutbound);
+        ctx.worker.emit('message', { type: 'done', total: 1, skipped: [] } satisfies WorkerOutbound);
+      }
+    };
+    const summary = await ctx.service.scan();
+    expect(summary.parsed).toBe(1);
+
+    const row = ctx.db
+      .prepare("SELECT meta_provenance FROM tracks WHERE file_path = 'D:/music/a1.mp3'")
+      .get() as { meta_provenance: string };
+    expect(row.meta_provenance).toBe(
+      '{"title":"filename","artist":"default","album":"default","albumArtist":"default","cover":"folder"}',
+    );
+  });
 });

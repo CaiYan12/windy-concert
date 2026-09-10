@@ -110,6 +110,23 @@ type BatchMsg = Extract<WorkerOutbound, { type: 'batch' }>;
 const FALLBACK_ARTIST = '未知艺术家';
 
 // ---------------------------------------------------------------------------
+// provenance 组装（T2.5 / F2-6）：来源溯源记录，§2.2 优先序 user > embedded >
+// folder > filename 从数据层建立——0.1 无 user 覆盖，此处仅写 embedded/filename/
+// folder/default 四种源记录。key 固定 5 个、值域固定、JSON.stringify 紧凑形态。
+// ---------------------------------------------------------------------------
+
+/** 解析时组装 meta_provenance JSON（标题是唯一有 filename 源回退的字段，F2-3）。 */
+export function buildProvenance(parsed: ParsedTrack): string {
+  return JSON.stringify({
+    title: parsed.tags.title ? 'embedded' : 'filename',
+    artist: parsed.tags.artist ? 'embedded' : 'default',
+    album: parsed.tags.album ? 'embedded' : 'default',
+    albumArtist: parsed.tags.albumArtist ? 'embedded' : 'default',
+    cover: parsed.picture ? 'embedded' : 'folder',
+  });
+}
+
+// ---------------------------------------------------------------------------
 // 工厂
 // ---------------------------------------------------------------------------
 
@@ -187,6 +204,7 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
         comment: parsedTrack.comment,
         codec: parsedTrack.codec,
         playable,
+        metaProvenance: buildProvenance(parsedTrack), // T2.5：重解析后 provenance 刷新（F2-6）
       });
       trackRepo.updateFileIdentity(changedId, {
         fileSize: statEntry.size,
@@ -220,6 +238,7 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
         bitDepth: parsedTrack.bitDepth,
         channels: parsedTrack.channels,
         playable,
+        metaProvenance: buildProvenance(parsedTrack), // T2.5：来源溯源（F2-6）
       };
       trackRepo.createMany([insert]);
     }
