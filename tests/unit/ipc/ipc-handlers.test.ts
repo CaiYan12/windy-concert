@@ -299,8 +299,17 @@ describe('registerIpcHandlers', () => {
     expect(ctx.scanService.scan).toHaveBeenCalledWith({ mode: 'full' });
   });
 
-  it('i18n:getMessages 资源缺失 → 返回 {}（T3.5 未交付，留痕）', () => {
-    expect(ctx.call<Record<string, string>>(IPC.CHANNELS.I18N_GET_MESSAGES, { lang: 'zh-CN' })).toEqual({});
+  it('i18n:getMessages zh-CN → 返回真实资源（T3.5 已交付；dev 态走 cwd/resources 路径）', () => {
+    const messages = ctx.call<Record<string, string>>(IPC.CHANNELS.I18N_GET_MESSAGES, { lang: 'zh-CN' });
+    // 资源文件随 T3.5 落盘，原「资源缺失返回 {}」占位断言失效（留痕）；改为校验真实读取。
+    expect(Object.keys(messages).length).toBeGreaterThan(0);
+    expect(messages['nav.songs']).toBe('歌曲');
+    // 全值 string（资源完整性）
+    for (const value of Object.values(messages)) expect(typeof value).toBe('string');
+  });
+
+  it('i18n:getMessages 资源缺失 → 返回 {}（原占位断言的缺失路径改为不存在的语言，留痕）', () => {
+    expect(ctx.call<Record<string, string>>(IPC.CHANNELS.I18N_GET_MESSAGES, { lang: 'fr-FR' })).toEqual({});
   });
 
   it('i18n:getMessages lang 含路径穿越（../）→ 未命中白名单抛错（评审修复）', () => {
