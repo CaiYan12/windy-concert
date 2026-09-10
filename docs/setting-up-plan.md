@@ -781,7 +781,7 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
   > 执行备注(2026-09-10): cover.worker（?nodeWorker 接线，vitest stub alias 扩展）——§3.5e 六候选顺序逐字、三档 64/256/512 JPEG quality85 fit:inside、单实例 sharp clone、失败回执不抛死、顶层兜底、零 db/electron；coverService——albumId 状态机（succeeded 丢弃/failed 排队重试，首个成功者胜出）、串行队列 enqueue 立即返回、成功路径 coverId 预生成→worker 写三档→insertCover({id})→setAlbumCover→onCoverReady；coverRepo 扩签 CoverInsert.id?（预生成 id 与目录名原子一致，randomUUID 回退）；scanService 零改动——wireCoverPipeline(deps: Pick<ScanServiceDeps,'onCoverJob'>) 辅助供 T3 组装。质量审查三 Important（部分失败残留清理/测试⑤重建路径/coversDropped 观测断层）→ 修复（d944177）+ 复审残留（wireCoverPipeline 签名收窄，主会话修正 4db10f2）闭环。T3 留痕：scan.log 的 coversDropped 汇合口径（scanService 侧 + coverService.droppedCount）由 T3 决定。sharp 实测单图 4 次解码已优化为 clone 三档。73 tests 全绿。
 - [x] **T2.5 provenance 写入**：解析时组装 `{title:'embedded'|'filename', artist:'embedded', ...}`；folder 封面对应 `cover:'folder'`；存入 tracks.meta_provenance（F2-6）。
   > 执行备注(2026-09-10): buildProvenance 五键固定（title: embedded|filename；artist/album/albumArtist: embedded|default；cover: embedded|folder 按 picture 有无——source 尝试即记录，成功与否属 T2.4 运行时），JSON.stringify 紧凑形态；create TrackInsert 与 changed updateAfterParse 双路透传（重解析即刷新）。3 用例（全 embedded/零标签 folder+default/changed 刷新）。质量审查 APPROVED，两注释级 Minor 顺手落掉（0001_init 值域注释补全、toBe 存储契约注释，commit 5ae4523）。76 tests 全绿。
-- [ ] **T2.6 扫描单测**（`tests/unit/library/*.test.ts`，临时目录 + `:memory:` 库直接驱动 service）：
+- [x] **T2.6 扫描单测**（`tests/unit/library/*.test.ts`，临时目录 + `:memory:` 库直接驱动 service）：
   - F1-2：5 层嵌套目录全部入库；
   - F1-4：二次扫描解析计数器=0（service 暴露 parseCount 供断言）；
   - 策略 1：改名/移动目录后重扫，Track id 不变（UUID 断言）；
@@ -791,6 +791,7 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
   - F2-1：三格式 fixture 全字段断言（含 cover bytes 存在）；
   - F2-3：无标签文件 title=文件名去扩展名；
   - F2-4：仅 cover.jpg 目录的专辑获得 folder 来源封面。
+  > 执行备注(2026-09-10): tests/unit/library/scan.e2e.test.ts 13 用例（真集成：RealLogicWorkerAdapter 注入 workerFactory 直驱真 walkFiles/parseFiles + 真 music-metadata + 真 sharp + wireCoverPipeline；scanner.worker 做最小导出重构 walkFiles/parseFiles 纯函数化，入口行为零变化）。九场景全绿 + 两用例强化：策略 1 正向（移出→missing→移入→adopt 三步流）+ 反向（改名失配→新 UUID+旧行 missing）。**计划语义缺口（用户裁定 V1.5）**：adopt 仅匹配 missing 行 + missing 标记在分类后 ⇒ 单次重扫的移动生成新 UUID 丢播放计数——markMissing 前置修复（commit 91b7a9f，复制场景无振荡实证），T2.6 补「单次移动保 id」「复制不挤占」两用例。F1-7 如实留痕：b) 目录冒充音频文件被 walk isDirectory 分支拦截（真实链路不可达 EISDIR），等效失败在 parseFiles 纯函数层复现；c) Node/libuv 无法造真独占句柄（FILE_SHARE默认全开），以 a/b 两条覆盖容错语义。F2-1 断言含 meta_provenance 全 embedded 与封面三档真实生成。**测试环境**：vitest.config.ts 顶部禁用 safe-delete shim（>50 项批量删除保护致清理 ENOTEMPTY 假失败，commit 随 91b7a9f 系列），vitest #10692 需大写盘符 cwd。89 tests 全绿（13 文件）。
 - [ ] **T2.7 样本库生成脚本**：`scripts/gen-sample-library.mjs`（附录 B），支持 `--count 30000 --out <dir>`。
 
 **预期产出**：完整「目录 → 入库 → 封面就绪」管道 + 30k 性能样本能力。
