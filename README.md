@@ -21,16 +21,17 @@ npm run dist       # 生产构建 + electron-builder --win dir
 
 ## 项目详细信息
 
-- **当前状态**：Phase 2 · 扫描与 Metadata 管道已完成并通过第三方评审（2026-09-10，结论 With fixes → I-1 封面来源优先级已修复，91 tests 全绿），Phase 2 代码与状态文档已提交入库。Phase 1 · 数据层、Phase 0 · 脚手架均已完成并入库。下一步等「进入 Phase 3」指令。
+- **当前状态**：Phase 3 · IPC 契约、Preload 桥、设置与 i18n 运行时已完成并通过第三方评审（2026-09-10，结论 With fixes → 分页钳制/数组拒绝/归一加固已修复，160 tests + 2 e2e 全绿，30k 数据库文件 1.19s 全链路 e2e），全部已提交入库。Phase 0~2 均已完成入库。下一步等「进入 Phase 4」指令。
 - **技术栈**：Electron ^39.2.6 + electron-vite ^5.0.0（三进程：main / preload / renderer）+ React ^19.2.1 + TypeScript ^5.9.3；数据层 better-sqlite3 ^13.0.3（WAL）、music-metadata ^11.15.0、sharp ^0.35.4；状态 zustand ^5.0.15、路由 react-router-dom ^7.18.3、列表 react-virtuoso ^4.18.13；测试 vitest ^5.0.0 + @playwright/test ^1.63.0。
 - **发布形态**：build\ 绿色目录（exe + 依赖可直接运行）+ 整目录 zip（build.bat / start.bat），NSIS 后置。
 - **文档索引**：实施计划 `docs/setting-up-plan.md`（V1.2，唯一执行依据）、需求终稿 `docs/finale-analysis.md`、领域术语 `CONTEXT.md`、决策记录 `docs/adr/`、设计基线 `docs/design/`（tokens.css 为唯一 tokens 源）。
 
 ## TODO
 
+- [x] Phase 3｜IPC 契约、Preload 桥、设置与 i18n 运行时（2026-09-10 完成并通过第三方评审：31→30 条 channel 全通 / 两协议 / settings / i18n 142 key / e2e 全链路）
 - [x] Phase 2｜扫描与 Metadata 管道（2026-09-10 完成并通过第三方评审：30k 首扫 39.5s；F2-2 内嵌优先已强制 V1.6）
 - [x] Phase 1｜数据层：SQLite + 迁移 + 仓库 + FTS（2026-09-10 完成）
-- [ ] 等待「进入 Phase 3」启动指令｜IPC 契约、Preload 桥、设置与 i18n 运行时
+- [ ] 等待「进入 Phase 4」启动指令｜应用 Shell 与浏览/搜索 UI（挂接 docs/design/）
 - [ ] Phase 4｜应用 Shell 与浏览/搜索 UI（挂接 docs/design/）
 - [ ] Phase 5｜播放器核心与队列
 - [ ] Phase 6｜收藏、歌单、最近播放
@@ -39,19 +40,29 @@ npm run dist       # 生产构建 + electron-builder --win dir
 
 ## 暂未解决的问题
 
-**Phase 2（扫描与 Metadata 管道）——Phase 3 前置清单（第三方评审产出，按序）**
+**Phase 3（IPC / Preload / 设置 / i18n）——Phase 4 前置清单（第三方评审产出，按序）**
 
-- `coverService` 的 albumId 去重状态跨扫描常驻，`rescanAll` 全量重扫不会刷新封面。→ **Phase 3 前置 ①**：T3 接线 rescanAll 时暴露 `resetAlbumStates()`（或 full 模式透传封面刷新标志）并补单测
-- `scan.log` 的 coversDropped 汇合口径待定：scanService 侧（未注入 onCoverJob 的丢弃）+ coverService.droppedCount（去重丢弃 + 失败归一）。→ **Phase 3 前置 ②**（组装 scan.log 时决定分开列示或合计）
+- **addFolder 不自动扫描**：调用方须显式 `library:scan()`——Phase 4 设置页/Library UI 保存目录后必须补扫描调用并订阅 `onScanProgress` 刷新列表（计划 V1.7 已澄清验收文案）。
+- IPC 常量与 payload 类型下沉 `shared/`（现 preload 值引用 main/ipc/channels.ts，耦合 main 目录）。→ **Phase 4 前置**
+- `wireCoverPipeline` 虽已改返回新 deps，但仍为 mutate 外部 deps 的辅助形态——Phase 4/7 组装时确认调用顺序（wire 先于 createScanService）。→ **Phase 4 前置**
+- protocol handler 的 net.fetch 失败分支（403/404/400 body）无用例。→ **Phase 4 前置**（薄封装测试或 e2e 资产）
+- `settings:set` 的 renderer 高频调用（音量滑条）建议节流。→ **Phase 4**（接 UI 时）
+- 渲染层文案硬编码 grep 检查（§4.3-6 全部走 t(key)）。→ **Phase 4 验收项**（T4.6）
+- `scan:progress` 的 phase:'cover' 相位从不发射（T2.3 遗留）——Phase 4 渲染层勿等待该相位，封面就绪以 covers:ready 为准。→ 无需解决（留痕）
+
+**Phase 2（扫描与 Metadata 管道）**
+
+- `coverService` 的 albumId 去重状态跨扫描常驻。→ ✅ **已解决（Phase 3 前置 ①，commit 8d2f14e）**：full 模式真实现（无视三元组全部重解析）+ resetAlbumStates() + 单测；rescanAll handler 已接线。
+- `scan.log` coversDropped 汇合口径。→ ✅ **已解决（Phase 3 前置 ②，commit 8d2f14e）**：定为合计口径——scanService deps 新增 coverDroppedExtra（T3 组装注入 cover.droppedCount），summary/log 单字段输出。
 - `tracks.cover_id` 列当前不写（封面仅落 albums.cover_id），TrackRow.coverId 恒 null。→ **Phase 4 前置确认**：渲染层封面全部走 album.coverId；如需曲目级封面再启用写路径
-- `wireCoverPipeline` 以 mutate 方式改写 deps.onCoverJob（先建 service 后 wire 会失效）。→ **Phase 3 前置 ③**：T3 组装时改为返回注入 onCoverJob 的新 deps（或直接构造含 onCoverJob 的 deps）
-- worker batch 消息的 `done` 字段未被 scanService 消费（冗余字段）。→ **建议时机：T3 接线时顺手删除或赋语义**
-- `gen-sample-library.mjs` 的 dirCount 统计漏计艺术家目录（打印口径偏低）。→ **建议时机：随手修**（纯显示问题）
+- `wireCoverPipeline` mutate 模式。→ ✅ **已解决（Phase 3 前置 ③，commit 1aa2f69）**：改为返回注入 onCoverJob 的新 deps；Phase 4 组装顺序注意见 Phase 3 清单。
+- worker batch 消息的 `done` 冗余字段。→ ✅ **已解决（Phase 3 前置，commit 8d2f14e）**：已删除。
+- `gen-sample-library.mjs` dirCount 统计漏计艺术家目录。→ ✅ **已解决（Phase 3 前置，commit e1c445d）**：口径真实现（1 根 + 艺术家 + 专辑三段如实）。
 - 计划 §3.4 正文 FTS 触发器仍为旧版 'delete' 语法（代码已按用户批准修正为标准 DELETE，执行备注留痕）。→ **建议时机：T5 文档收尾**统一同步（或保留为历史原文 + 执行备注引用）
 - worker ParsedTrack 携带完整 picture bytes，单批峰值 20–400MB（增量场景量小）。→ **建议时机：M5 性能打点超预期时**（备选：PARSE_BATCH 降 100 / 同 album 置空 picture）
 - F1-7 真独占句柄在 Node/libuv（Windows FILE_SHARE 默认全开）下不可造，以「目录冒充音频文件 + parseFiles 纯函数层 EISDIR」等效覆盖。→ 无需解决（等效覆盖已留痕，真独占场景留待实测）
 - `listSongs` 的 mtime 浮点 vs INTEGER affinity 严格相等比较——当前同源 stat 精确往返无损。→ **建议时机：出现跨扫描 re-parse 抖动时**（比较/存储前取整）
-- 环境事实：vitest #10692（小写盘符 cwd 全挂）与 WorkBuddy safe-delete shim（>50 项批量删除保护致 ENOTEMPTY，已在 vitest.config 无条件禁用、afterEach 加 delete-pending 重试）已规避。→ 无需解决（跨会话跑测试注意入口）
+- 环境事实：vitest #10692（小写盘符 cwd 全挂）与 WorkBuddy safe-delete shim（已在 vitest.config 无条件禁用 + afterEach delete-pending 重试）已规避。→ 无需解决（跨会话跑测试注意入口）
 
 **Phase 1（数据层）**
 
