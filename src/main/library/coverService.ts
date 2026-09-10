@@ -1,7 +1,9 @@
 // T2.4 coverService —— §3.5e 封面队列（异步于扫描主流程）。
 //   enqueue(job)：scanService 阶段 E 接缝的消费者；立即返回，不阻塞 scan（扫描 done 不等待封面完成）。
-//   去重状态机（F2-4 同专辑复用，首个成功者胜出）：内存 Map<albumId, 'pending'|'succeeded'>——
-//     succeeded → 后续同 album 任务直接丢弃；failed/未尝试 → 排队处理（失败允许下一 job 再试）。
+//   去重状态机（F2-4 同专辑复用 + I-1 来源优先级 embedded>folder）：内存
+//     Map<albumId, {state:'pending'|'succeeded', source?:'embedded'|'folder'}>——
+//     succeeded 附已生效 source：folder 已胜出 + embedded 后到 → 强制内嵌优先、升级重跑覆盖（用户裁定）；
+//     embedded 已胜出 + folder 后到 → 直接丢弃；failed/未尝试 → 排队处理（失败允许下一 job 再试）。
 //   串行队列（留痕：简单为先，受限并发留给后续优化）。
 //   成功路径：预生成 coverId → worker 写三档文件 → 成功回执后 coverRepo 落库 + setAlbumCover +
 //     onCoverReady（covers:ready 的进程内发射点，IPC 接线归 T3）。
@@ -72,8 +74,13 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
   // 默认 worker：electron-vite ?nodeWorker 在 build 时编译为 new Worker(...)（T2.6 前测试注入伪 worker）。
   const workerFactory = deps.workerFactory ?? ((): CoverWorkerLike => CoverWorker({}));
 
-  // 去重状态机：'pending' = 尝试中或曾失败（可继续排队重试）；'succeeded' = 首个成功者胜出。
-  const albumState = new Map<number, 'pending' | 'succeeded'>();
+  // 去重状态机（I-1 来源优先级 embedded>folder）：'pending' = 尝试中或曾失败（可继续排队重试）；
+  //   'succeeded' 附带已生效 source——folder 已成功后若 embedded 到达，强制升级重跑（覆盖）；
+  //   embedded 已成功后 folder 到达则纯丢弃（用户裁定强制内嵌优先）。
+  type AlbumStatus =
+    | { state: 'pending' }
+    | { state: 'succeeded'; source: 'embedded' | 'folder' };
+  const albumState = new Map<number, AlbumStatus>();
   const queue: CoverJob[] = [];
   const pending = new Map<string, (r: WorkerResult) => void>(); // coverId → 回执解析
   const drainWaiters: Array<() => void> = [];
@@ -131,12 +138,28 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
     }
   }
 
+  // 来源优先级判定（I-1）：返回 'drop'=纯丢弃（计入 dropped）/ 'upgrade'=folder→embedded 升级重跑
+  // （不计入 dropped，重置为 pending 后重跑）/ 'enqueue'=正常入队运行。
+  function dedupDecision(job: CoverJob): 'drop' | 'upgrade' | 'enqueue' {
+    const cur = albumState.get(job.albumId);
+    if (cur?.state !== 'succeeded') return 'enqueue';
+    if (cur.source === 'embedded' || job.source === 'folder') return 'drop';
+    return 'upgrade'; // folder 已胜出 + embedded 后到 → 强制内嵌优先，升级重跑
+  }
+
   function pump(): void {
     if (inFlight) return;
     while (queue.length > 0) {
       const job = queue.shift() as CoverJob;
-      if (albumState.get(job.albumId) === 'succeeded') {
-        dedupDropped++; // 首个成功者胜出：同专辑后续任务丢弃
+      const decision = dedupDecision(job);
+      if (decision === 'drop') {
+        dedupDropped++; // 纯丢弃：同专辑已胜出者更高优先级或同源
+        continue;
+      }
+      if (decision === 'upgrade') {
+        // 升级重跑：不计入 dropped；重置为 pending 后队首优先重跑（成功后覆盖 cover_id 与三档文件）
+        albumState.set(job.albumId, { state: 'pending' });
+        queue.unshift(job);
         continue;
       }
       inFlight = true;
@@ -177,11 +200,12 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
         height: result.height,
       });
       coverRepo.setAlbumCover(job.albumId, coverId);
-      albumState.set(job.albumId, 'succeeded');
+      albumState.set(job.albumId, { state: 'succeeded', source: job.source });
       deps.onCoverReady?.({ coverId });
     } catch {
       // 落库异常等（worker 'error' 事件在 ensureWorker 内已归一为 failed 回执）：
       // 该 albumId 标 failed（保持可重试），不击穿 service。
+      failedNormalized++; // M-3：catch 分支与 error 归一口径（失败归一 failed 计数）
       pending.delete(coverId);
     }
   }
@@ -191,11 +215,19 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
   // -------------------------------------------------------------------------
 
   function enqueue(job: CoverJob): void {
-    if (albumState.get(job.albumId) === 'succeeded') {
-      dedupDropped++; // 已成功：后续同 album 任务直接丢弃
+    const decision = dedupDecision(job);
+    if (decision === 'drop') {
+      dedupDropped++; // 已成功且更高优先级/同源：直接丢弃
       return;
     }
-    albumState.set(job.albumId, 'pending');
+    if (decision === 'upgrade') {
+      // 升级重跑（folder→embedded）：不计入 dropped；重置为 pending 后队首优先重跑
+      albumState.set(job.albumId, { state: 'pending' });
+      queue.unshift(job);
+      pump();
+      return;
+    }
+    albumState.set(job.albumId, { state: 'pending' });
     queue.push(job);
     pump();
   }

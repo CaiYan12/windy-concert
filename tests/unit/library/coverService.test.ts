@@ -319,4 +319,74 @@ describe('coverService', () => {
       (ctx.db.prepare('SELECT COUNT(*) AS c FROM cover_art').get() as { c: number }).c,
     ).toBe(1);
   });
+
+  it('⑦ 同专辑混源：folder 先成功 → embedded 后到 → 替换重跑胜出（I-1 强制内嵌优先）', async () => {
+    const ctx = makeService();
+    const dir = tempDir('wc-album-');
+    writeFileSync(path.join(dir, 'cover.png'), await makeImage('png'));
+
+    // folder 先成功（cover_id 指向 A）
+    ctx.service.enqueue({ albumId: ctx.albumId, source: 'folder', folderPath: dir });
+    await ctx.service.flush();
+    expect(ctx.ready).toHaveLength(1);
+    const coverA = ctx.ready[0]!;
+    expect(
+      (ctx.db.prepare('SELECT cover_id FROM albums WHERE id = ?').get(ctx.albumId) as { cover_id: string }).cover_id,
+    ).toBe(coverA);
+
+    // embedded 后到 → 升级重跑覆盖
+    const bytes = await makeImage('jpeg', 120, 90);
+    ctx.service.enqueue({ albumId: ctx.albumId, source: 'embedded', bytes, mime: 'image/jpeg' });
+    await ctx.service.flush();
+
+    // onCoverReady 再次触发，指向新 coverId B（≠ A）
+    expect(ctx.ready).toHaveLength(2);
+    const coverB = ctx.ready[1]!;
+    expect(coverB).not.toBe(coverA);
+
+    // albums.cover_id 指向新 B
+    expect(
+      (ctx.db.prepare('SELECT cover_id FROM albums WHERE id = ?').get(ctx.albumId) as { cover_id: string }).cover_id,
+    ).toBe(coverB);
+
+    // 三档文件 B 存在
+    for (const size of [64, 256, 512]) {
+      expect(existsSync(path.join(ctx.coversDir, coverB, `${size}.jpg`))).toBe(true);
+    }
+
+    // 旧行保留（孤儿目录留痕、不删，缓存可重建）
+    expect(
+      (ctx.db.prepare('SELECT COUNT(*) AS c FROM cover_art').get() as { c: number }).c,
+    ).toBe(2);
+
+    // 升级重跑不计入 dropped
+    expect(ctx.service.droppedCount).toBe(0);
+  });
+
+  it('⑧ 已 embedded 后 folder 到达 → 丢弃（I-1 强制内嵌优先）', async () => {
+    const ctx = makeService();
+    const bytes = await makeImage('jpeg');
+
+    // embedded 先成功
+    ctx.service.enqueue({ albumId: ctx.albumId, source: 'embedded', bytes, mime: 'image/jpeg' });
+    await ctx.service.flush();
+    expect(ctx.ready).toHaveLength(1);
+    const coverId = ctx.ready[0]!;
+
+    // folder 后到 → 丢弃
+    const dir = tempDir('wc-album-');
+    writeFileSync(path.join(dir, 'cover.png'), await makeImage('png'));
+    ctx.service.enqueue({ albumId: ctx.albumId, source: 'folder', folderPath: dir });
+    await ctx.service.flush();
+
+    // droppedCount +1、cover_id 不变、仅一条 cover_art 行
+    expect(ctx.service.droppedCount).toBe(1);
+    expect(
+      (ctx.db.prepare('SELECT cover_id FROM albums WHERE id = ?').get(ctx.albumId) as { cover_id: string }).cover_id,
+    ).toBe(coverId);
+    expect(ctx.ready).toHaveLength(1);
+    expect(
+      (ctx.db.prepare('SELECT COUNT(*) AS c FROM cover_art').get() as { c: number }).c,
+    ).toBe(1);
+  });
 });
