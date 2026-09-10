@@ -389,4 +389,41 @@ describe('coverService', () => {
       (ctx.db.prepare('SELECT COUNT(*) AS c FROM cover_art').get() as { c: number }).c,
     ).toBe(1);
   });
+
+  it('⑨ resetAlbumStates：succeeded 后 reset → 同 album job 再次处理成功（rescanAll 刷新封面接缝）', async () => {
+    const ctx = makeService();
+    const bytes = await makeImage('jpeg');
+
+    // 首任务成功（albumId 进入 succeeded）
+    ctx.service.enqueue({ albumId: ctx.albumId, source: 'embedded', bytes, mime: 'image/jpeg' });
+    await ctx.service.flush();
+    expect(ctx.ready).toHaveLength(1);
+    expect(ctx.service.droppedCount).toBe(0);
+    expect(ctx.worker.sent).toHaveLength(1);
+
+    // succeeded 后再次投递同 album → 默认被去重丢弃
+    ctx.service.enqueue({
+      albumId: ctx.albumId,
+      source: 'embedded',
+      bytes: await makeImage('jpeg', 40, 40),
+    });
+    await ctx.service.flush();
+    expect(ctx.service.droppedCount).toBe(1); // 去重丢弃计数 +1
+    expect(ctx.ready).toHaveLength(1); // 未再处理
+
+    // resetAlbumStates：清空去重状态机；droppedCount 累计保留（观测口径不归零）
+    ctx.service.resetAlbumStates();
+    expect(ctx.service.droppedCount).toBe(1);
+
+    // 再次投递同 album → 重新处理成功（封面刷新接缝）
+    ctx.service.enqueue({
+      albumId: ctx.albumId,
+      source: 'embedded',
+      bytes: await makeImage('jpeg', 80, 60),
+    });
+    await ctx.service.flush();
+    expect(ctx.service.droppedCount).toBe(1); // 未新增丢弃
+    expect(ctx.ready).toHaveLength(2); // 第二次成功处理
+    expect(ctx.worker.sent).toHaveLength(2);
+  });
 });

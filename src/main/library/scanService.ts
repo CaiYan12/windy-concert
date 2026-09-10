@@ -73,6 +73,8 @@ export interface ScanSummary {
   adopted: number;
   /** 本次被标记 missing 的条数。 */
   missingMarked: number;
+  /** 封面丢弃汇合计数 = 扫描侧未注入 onCoverJob 的丢弃 + 外部（coverService.droppedCount）丢弃，T3 注入（留痕）。 */
+  coversDropped: number;
   elapsedMs: number;
 }
 
@@ -95,6 +97,9 @@ export interface ScanServiceDeps {
   onCoverJob?: (job: CoverJob) => void;
   /** scan.log 目录；未注入则不写文件、仅返回 summary（T2.6 测试注入临时目录）。 */
   logDir?: string;
+  /** T3 接缝（Phase 3 前置）：封面丢弃汇合口径——注入 coverService.droppedCount，
+   *  使 scan.log 的 coversDropped 同时包含封面队列侧（去重丢弃 + 失败归一）丢弃（留痕）。 */
+  coverDroppedExtra?: () => number;
   /** elapsedMs 计时注入（默认 Date.now）。 */
   now?: () => number;
 }
@@ -326,6 +331,22 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
       for (const f of statResult.files) {
         const k = f.path.toLowerCase();
         const row = dbByPath.get(k);
+        if (mode === 'full') {
+          // full 模式（rescanAll 全量语义，Phase 3 前置）：无视三元组全部重解析——
+          // 命中 dbByPath → 一律按 changed 处理（重解析、保留原 id、updateAfterParse +
+          // updateFileIdentity 刷新身份三元组）；未命中 → create（无 adopt 匹配场景：
+          // full 下文件名/大小/时间复用检测无意义，命中行已直接重解析）。
+          // missing 标记逻辑不变（上方 markMissing 已前置执行）；C1 复活随重解析一并处理。
+          if (!row) {
+            toParse.push(f);
+          } else {
+            changedById.set(k, row.id);
+            toParse.push(f);
+            if (row.status === 'missing') reviveIds.push(row.id);
+          }
+          continue;
+        }
+        // incremental 模式（原行为，留痕不变）
         if (!row) {
           // adopt 匹配：(fileName,size,mtime) 唯一命中一条 missing → 仅挪路径 + 复活；
           // 0 或 ≥2 命中均按 create 处理（歧义宁可新建）。
@@ -445,17 +466,20 @@ export function createScanService(deps: ScanServiceDeps): ScanService {
       const total = statResult.files.length;
       emitProgress('done', total, total);
 
+      // coversDropped 汇合（T3 口径）：扫描侧自身计数 + 外部注入的封面队列侧丢弃计数。
+      const coversDroppedMerged = coversDropped + (deps.coverDroppedExtra?.() ?? 0);
       const summary: ScanSummary = {
         total,
         parsed,
         skipped: statResult.skipped.length + parseSkipped.length,
         adopted,
         missingMarked,
+        coversDropped: coversDroppedMerged,
         elapsedMs: now() - t0,
       };
 
       if (deps.logDir) {
-        const line = `${JSON.stringify({ at: new Date().toISOString(), mode, ...summary, coversDropped })}\n`;
+        const line = `${JSON.stringify({ at: new Date().toISOString(), mode, ...summary })}\n`;
         await fsp.mkdir(deps.logDir, { recursive: true });
         await fsp.appendFile(path.join(deps.logDir, 'scan.log'), line, 'utf8');
       }

@@ -174,6 +174,8 @@ function main() {
   let files = 0;
   let totalBytes = 0;
   let dirCount = 1; // 含 out 根目录
+  let artistCount = 0;
+  let albumCount = 0;
   const fixtureSizes = Object.fromEntries(
     Object.entries(FIXTURES).map(([k, p]) => [k, statSync(p).size]),
   );

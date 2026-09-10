@@ -71,7 +71,7 @@ export type WorkerInbound = { type: 'stat'; dirs: string[] } | { type: 'parse'; 
 /** worker→主进程（skipped 为失败/跳过路径清单，仅记日志跳过——F1-7）。 */
 export type WorkerOutbound =
   | { type: 'stat'; files: StatFile[]; skipped: string[] }
-  | { type: 'batch'; parsed: ParsedTrack[]; done: number; skipped: string[] }
+  | { type: 'batch'; parsed: ParsedTrack[]; skipped: string[] }
   | { type: 'done'; total: number; skipped: string[] }
   | { type: 'error'; stage: 'stat' | 'parse' | 'unknown'; message: string };
 
@@ -235,7 +235,6 @@ export async function parseFiles(
     const msg: WorkerOutbound = {
       type: 'batch',
       parsed: [...parsed],
-      done: parsed.length,
       skipped: batchSkipped,
     };
     post(msg);

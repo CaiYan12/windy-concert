@@ -53,6 +53,9 @@ export interface CoverService {
   flush(): Promise<void>;
   /** 只读观测计数：封面被丢弃而未落库的次数 = 去重丢弃 + 失败归一 failed（合计口径，留痕）。 */
   readonly droppedCount: number;
+  /** rescanAll 全量重扫前调用：清空 albumId 去重状态机以允许封面刷新；
+   *  droppedCount 累计不归零（drop 计数是观测口径，仅重置去重状态）。 */
+  resetAlbumStates(): void;
 }
 
 /** worker 成功回执的归一形态。 */
@@ -237,9 +240,17 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
     return new Promise<void>((resolve) => drainWaiters.push(resolve));
   }
 
+  function resetAlbumStates(): void {
+    // 仅重置去重状态机（albumId → 状态），使后续同 albumId 的封面 job 不再被 succeeded 丢弃、
+    // 全量重扫可刷新封面（rescanAll 全量语义，Phase 3 前置）。
+    // droppedCount（dedupDropped + failedNormalized）累计保留——drop 计数为观测口径，不随重置归零。
+    albumState.clear();
+  }
+
   return {
     enqueue,
     flush,
+    resetAlbumStates,
     get droppedCount() {
       return dedupDropped + failedNormalized;
     },

@@ -121,22 +121,21 @@ function standardResponder(ctx: Ctx): (msg: WorkerInbound) => void {
     } else if (msg.type === 'parse') {
       ctx.worker.emit('message', {
         type: 'batch',
-        parsed: [
-          parsedTrack('D:/music/a1.mp3', {
-            title: 'Song 1',
-            picture: { bytes: new Uint8Array([1, 2, 3]), mime: 'image/jpeg', type: 'front' },
-          }),
-          parsedTrack('D:/music/a2.mp3', { title: 'Song 2' }),
-          parsedTrack('D:/music/b1.ape', {
-            title: 'Song 3',
-            artistString: 'Artist B feat. C',
-            albumArtist: 'Artist B',
-            album: 'Album Y',
-          }),
-        ],
-        done: 3,
-        skipped: [],
-      } satisfies WorkerOutbound);
+          parsed: [
+            parsedTrack('D:/music/a1.mp3', {
+              title: 'Song 1',
+              picture: { bytes: new Uint8Array([1, 2, 3]), mime: 'image/jpeg', type: 'front' },
+            }),
+            parsedTrack('D:/music/a2.mp3', { title: 'Song 2' }),
+            parsedTrack('D:/music/b1.ape', {
+              title: 'Song 3',
+              artistString: 'Artist B feat. C',
+              albumArtist: 'Artist B',
+              album: 'Album Y',
+            }),
+          ],
+          skipped: [],
+        } satisfies WorkerOutbound);
       ctx.worker.emit('message', { type: 'done', total: 3, skipped: [] } satisfies WorkerOutbound);
     }
   };
@@ -158,6 +157,7 @@ describe('scanService', () => {
       skipped: 0,
       adopted: 0,
       missingMarked: 0,
+      coversDropped: 0,
       elapsedMs: expect.any(Number),
     });
 
@@ -213,6 +213,7 @@ describe('scanService', () => {
       skipped: 0,
       adopted: 0,
       missingMarked: 0,
+      coversDropped: 0,
       elapsedMs: expect.any(Number),
     });
     // 仅首扫发起 parse
@@ -260,6 +261,7 @@ describe('scanService', () => {
       skipped: 0,
       adopted: 1,
       missingMarked: 0,
+      coversDropped: 0,
       elapsedMs: expect.any(Number),
     });
     expect(ctx.worker.sent.filter((m) => m.type === 'parse')).toHaveLength(0);
@@ -319,6 +321,7 @@ describe('scanService', () => {
       skipped: 0,
       adopted: 0,
       missingMarked: 0,
+      coversDropped: 0,
       elapsedMs: expect.any(Number),
     });
 
@@ -592,5 +595,126 @@ describe('scanService', () => {
     expect(row.meta_provenance).toBe(
       '{"title":"filename","artist":"default","album":"default","albumArtist":"default","cover":"folder"}',
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Phase 3 前置：full 模式真实现（无视三元组全部重解析）
+  // -------------------------------------------------------------------------
+
+  it('⑬ full 模式：已入库曲目 mtime 不变仍全部重解析、id 不变、用户数据列(play_count/favorite)不受影响', async () => {
+    const ctx = makeService();
+    ctx.worker.responder = standardResponder(ctx); // 首扫（incremental）写入 3 条
+
+    const first = await ctx.service.scan();
+    expect(first.parsed).toBe(3);
+    expect(first.adopted).toBe(0);
+
+    // 造用户数据列（play_count / favorite / 不同值），用于验证重解析不覆盖
+    ctx.db
+      .prepare("UPDATE tracks SET play_count = 42, favorite = 1 WHERE file_path = 'D:/music/a1.mp3'")
+      .run();
+    ctx.db
+      .prepare("UPDATE tracks SET play_count = 7, favorite = 0 WHERE file_path = 'D:/music/a2.mp3'")
+      .run();
+
+    const before = ctx.db
+      .prepare('SELECT id, file_path, play_count, favorite, status FROM tracks ORDER BY file_path')
+      .all() as Array<{ id: string; file_path: string; play_count: number; favorite: number; status: string }>;
+    const beforeIds = before.map((r) => r.id);
+
+    // 二扫 full：mtime 未变也应全部重解析（changed 分支无视三元组）
+    const full = await ctx.service.scan({ mode: 'full' });
+    expect(full).toMatchObject({
+      total: 3,
+      parsed: 3,
+      skipped: 0,
+      adopted: 0,
+      missingMarked: 0,
+      coversDropped: 0,
+    });
+
+    // id 不变（保留原 UUID）
+    const after = ctx.db
+      .prepare('SELECT id, file_path, play_count, favorite, status FROM tracks ORDER BY file_path')
+      .all() as Array<{ id: string; file_path: string; play_count: number; favorite: number; status: string }>;
+    expect(after.map((r) => r.id)).toEqual(beforeIds);
+    expect(after.map((r) => r.file_path)).toEqual(before.map((r) => r.file_path));
+
+    // 用户数据列（updateAfterParse 白名单不含这些列）不受影响
+    const a1 = after.find((r) => r.file_path === 'D:/music/a1.mp3')!;
+    const a2 = after.find((r) => r.file_path === 'D:/music/a2.mp3')!;
+    expect(a1.play_count).toBe(42);
+    expect(a1.favorite).toBe(1);
+    expect(a2.play_count).toBe(7);
+    expect(a2.favorite).toBe(0);
+    // 重解析后状态仍 available、元数据随新解析刷新（封面再次投递不丢）
+    expect(after.every((r) => r.status === 'available')).toBe(true);
+    expect(ctx.coverJobs.length).toBe(6); // 首扫 3 + 全量重扫 3
+  });
+
+  it('⑭ full 模式：新文件仍 create、adopt 分支不生效（命中行直接重解析而非挪路径）', async () => {
+    const ctx = makeService();
+    ctx.worker.responder = standardResponder(ctx);
+    await ctx.service.scan(); // 首扫写入 a1/a2/b1
+
+    // 制造一条 missing 记录（模拟文件移除）：full 扫时该路径不在 stat 中
+    const artistId = ctx.artistRepo.upsertArtist('Artist A');
+    const albumId = ctx.albumRepo.upsertAlbum('Album X', artistId);
+    ctx.trackRepo.createMany([
+      {
+        id: 'ghost-id',
+        title: 'Ghost',
+        artistId,
+        albumId,
+        albumArtist: 'Artist A',
+        albumTitle: 'Album X',
+        filePath: 'D:/music/ghost.mp3',
+        fileName: 'ghost.mp3',
+        fileSize: 100,
+        fileMtime: 1000,
+        format: 'mp3',
+        playable: true,
+      },
+    ]);
+    ctx.trackRepo.setStatus(['ghost-id'], 'missing');
+
+    // full 重扫：stat 出现一条同 (fileName,size,mtime) 的新文件 X.mp3；
+    // full 下 adopt 不生效 → 走 create（新 UUID），而非挪 ghost-id 路径
+    ctx.worker.responder = (msg) => {
+      if (msg.type === 'stat') {
+        ctx.worker.emit('message', {
+          type: 'stat',
+          files: [
+            statFile('D:/music/a1.mp3'),
+            statFile('D:/music/a2.mp3'),
+            statFile('D:/music/b1.ape'),
+            statFile('D:/music/X.mp3', 100, 1000), // 同 ghost 的三元组，但路径不同
+          ],
+          skipped: [],
+        } satisfies WorkerOutbound);
+      } else if (msg.type === 'parse') {
+        // full 下 toParse = a1/a2/b1（changed 重解析）+ X.mp3（create），逐条回放
+        ctx.worker.emit('message', {
+          type: 'batch',
+          parsed: msg.files.map((f) =>
+            f.path === 'D:/music/X.mp3' ? parsedTrack(f.path, { title: 'X Song' }) : parsedTrack(f.path),
+          ),
+          skipped: [],
+        } satisfies WorkerOutbound);
+        ctx.worker.emit('message', { type: 'done', total: msg.files.length, skipped: [] } satisfies WorkerOutbound);
+      }
+    };
+
+    const full = await ctx.service.scan({ mode: 'full' });
+    expect(full.parsed).toBe(4); // 3 重解析 + 1 新 create
+    expect(full.adopted).toBe(0); // full 下无 adopt
+
+    const ghost = ctx.trackRepo.findById('ghost-id')!;
+    expect(ghost.filePath).toBe('D:/music/ghost.mp3'); // 路径未被挪动
+    expect(ghost.status).toBe('missing'); // 仍 missing（full 下该路径不在 stat）
+    const newRow = ctx.db
+      .prepare("SELECT id, file_path FROM tracks WHERE file_path = 'D:/music/X.mp3'")
+      .get() as { id: string; file_path: string };
+    expect(newRow.id).not.toBe('ghost-id'); // 新 UUID（create，非 adopt）
   });
 });
