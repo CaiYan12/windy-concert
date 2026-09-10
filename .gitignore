@@ -1,0 +1,21 @@
+# 依赖与构建产物
+node_modules/
+out/
+release/
+build/
+
+# 日志
+*.log
+
+# Agent 工作区
+.workbuddy/
+
+# 测试产物
+playwright-report/
+test-results/
+dev-userdata/
+
+# 会话工具产物（AGENTS.md Git Rule：插件文件不入库）
+.playwright-cli/
+.design-flow.json
+output/
