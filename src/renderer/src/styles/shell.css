@@ -75,6 +75,20 @@ a {
   color: var(--text-tertiary);
 }
 
+/* mockup.css:102-112 —— T4.3 复回：M1 壳层迁移时曾移除，现按设计稿原样补回。
+   用途：TrackList 的序号列（可见 '#' + sr-only「序号」）、状态列表头（sr-only「状态」）。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* mockup.css:114-130 */
 .skip-link {
   position: fixed;
@@ -395,29 +409,10 @@ a {
   padding: 24px;
 }
 
-/* ---------- 封面（mockup.css:626-734 的壳层子集） ---------- */
-/* T4.1 仅需中性占位封面（PlayerBar）；色块封面与 256 档网格封面属 Cover 组件（T4.3）。 */
-.cover {
-  position: relative;
-  display: grid;
-  overflow: hidden;
-  place-items: center;
-  background: var(--bg-elevated);
-  color: var(--text-tertiary);
-}
-
-.cover--mini {
-  width: 48px;
-  height: 48px;
-  flex: 0 0 auto;
-  border-radius: var(--radius-mini-cover);
-}
-
-/* T4.1 新增（非 mockup 类）：占位期 PlayerBar 无曲目，设计稿的 cover--{night,chopin,…} 色块均绑定
-   具体曲目（属假数据），故复用 .cover 的中性底 + 弱化图标代替。T5.4 接入真实封面后本类整体移除。 */
-.cover--placeholder .library-icon {
-  opacity: 0.38;
-}
+/* ---------- 封面 ---------- */
+/* T4.3 起 Cover 组件样式整体迁移至 styles/cover.css（含 .cover / .cover--mini / .cover--table /
+   .cover--hero / .cover--placeholder 与占位图标规则）；仍在 shell.css 使用 .cover 的 PlayerBar
+   不受影响——cover.css 在 App.tsx 全局引入，与 shell.css 同层生效。 */
 
 /* ---------- 播放栏（mockup.css:1765-1942） ---------- */
 /* 偏离（报告留痕）：设计稿三列 minmax 最小宽 230/340/230（合计 800px）在 html min-width:960px

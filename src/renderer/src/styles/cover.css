@@ -1,0 +1,72 @@
+/* Cover 组件样式（T4.3）——自 mockup.css:626-734 迁移的壳层子集。
+ *
+ * 迁移范围（不整文件拷贝，只取 Cover 真正用到的规则）：
+ *   .cover / .cover img / .cover--mini / .cover--table / .cover--hero /
+ *   .cover--placeholder / 占位图标透明度。
+ * **未迁移**：设计稿里绑定具体曲目/专辑的色块封面
+ *   （.cover--night / --chopin / --blue / --amber / --plum 与 .cover span 文案层）——
+ *   它们全部依赖假数据（专辑名色块），M0.1 一律由「中性占位 + music-2」替代。
+ *
+ * 尺寸解耦（关键设计决定，回答「表格缩略图档位」）：
+ *   size 属性（64|256|512）只决定向 wc-cover:// 协议请求的**图像档位**；
+ *   显示盒尺寸由消费方经 className 提供（cover--mini 48 / cover--table 40 / cover--hero 200）。
+ *   为何必须解耦：§3.7 列宽 44px、设计稿 .cover--table 盒 40px，二者都小于最小生成档 64px，
+ *   不可能用同一数值同时充当「请求档位」与「CSS 盒尺寸」。表格缩略图取 64 档的理由见 Cover.tsx。
+ *
+ * 着色一律引用 tokens（var(--*)）；盒尺寸为设计稿字面 px（§3.7 / mockup.css 未 token 化）。
+ */
+
+.cover {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+}
+
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover--mini {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-mini-cover);
+}
+
+.cover--table {
+  width: 40px;
+  height: 40px;
+  border-radius: 0;
+}
+
+.cover--hero {
+  width: 200px;
+  height: 200px;
+  border-radius: 0;
+}
+
+.cover--placeholder {
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+}
+
+/* 占位图标（恒为 music-2）——设计稿 .cover .library-icon.cover-icon { width/height:58% }。
+ * Icon 组件把 width/height 写成 <img> 的行内样式，行内优先于类规则，故此处必须 !important
+ * 才能让 58%（随盒尺寸自适应）生效。这是本文件唯一一处 !important，且仅命中 Cover 自己的
+ * 占位图标（.cover-icon）；PlayerBar 的 <Icon> 无 cover-icon 类，尺寸不受影响。 */
+.cover .library-icon.cover-icon {
+  width: 58% !important;
+  height: 58% !important;
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* 非 Cover 组件的占位图标（如 PlayerBar 的 cover--mini）保留 T4.1 的弱化处理，与 Cover 无关。 */
+.cover--placeholder .library-icon:not(.cover-icon) {
+  opacity: 0.38;
+}

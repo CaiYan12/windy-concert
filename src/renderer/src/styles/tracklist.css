@@ -1,0 +1,334 @@
+/* TrackList 组件样式（T4.3）——自 mockup.css 按组件收口迁移。
+ *
+ * 来源：mockup.css:736-922（表格 / 行 / 单元 / 排序按钮）+ 1994-2032（右键菜单）。
+ * 迁移取舍（自文档，非整文件拷贝）：
+ *   · 只保留 Songs 的 §3.7 列宽一套；不迁 .track-table--compact / --recent /
+ *     .page-playlist-detail 变体（属 T4.4+ 其它页面）；
+ *   · 不迁 .component-board / .page-state / .state-switcher 等设计验收工具样式；
+ *   · 演示用强制态类 .is-hover-preview 舍弃——真实 hover 由 :hover / :focus-within 承担。
+ * 偏离留痕（docs 为只读，故记在此处）：
+ *   ① 设计稿只有「标题」列带排序按钮；本组件按 §3.7 的 7 键排序白名单，把列内可对应白名单键的
+ *      标题/艺术家/专辑/时长四列都做成可排序表头（否则白名单里除 title 外无入口）。
+ *   ② .track-row.is-playing 的索引着色由 .track-index（设计稿中的失效选择器）校正为 .track-cell--index。
+ *
+ * 着色一律引用 tokens（var(--*)）；列宽为 §3.7 明文规定的 px（44/40/…/28），设计稿与计划均未 token 化。
+ */
+
+/* ---------- 容器（virtuoso 滚动区 + 空/加载/错误态） ---------- */
+/* T4.3 临时：Songs 占位页容器（PagePlaceholder 用；T4.4 真实 Songs 页落地后随该分支一并移除）。
+   .page-wrap 处于 .main-content 的确定高度轨道内，令其铺满高度并纵向 flex，使 .track-list 高度确定，
+   虚拟滚动才能拿到可用高度。 */
+.tracklist-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.track-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.track-list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  scrollbar-color: var(--text-tertiary) transparent;
+  scrollbar-width: thin;
+}
+
+.track-list-state {
+  display: grid;
+  place-items: center;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-4);
+  text-align: center;
+}
+
+.track-list-state-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+}
+
+.track-list-state-hint {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- 表格与行（mockup.css:736-813） ---------- */
+/* 偏离留痕（相对 mockup.css:736 的普通块级盒）：设计稿整页在 .main-content 里自然滚动，
+ * 无虚拟化；本组件引入 virtuoso 后必须给滚动区一个**确定高度**——Virtuoso 根元素以自身高度
+ * 决定渲染窗口，若其父级高度为 auto（块级盒 + 子级 auto），测得高度 0 → 一行都不渲染（仅
+ * 表头/空态隐藏）。故把 .track-table 升为纵向 flex 容器并吃掉 .track-list 的剩余高度，
+ * .track-list-scroll 再以 flex:1 填满，高度链闭合。列宽/行高规则不变。 */
+.track-table {
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 900px;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.track-row {
+  display: grid;
+  min-height: var(--row-height);
+  align-items: center;
+  column-gap: 10px;
+  padding: 0 8px;
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  transition:
+    background-color var(--duration-feedback) var(--ease-standard),
+    color var(--duration-feedback) var(--ease-standard),
+    opacity var(--duration-feedback) var(--ease-standard);
+}
+
+/* §3.7 列宽：封面 44 / 序号 40 / 标题 minmax(200,2fr) / 艺术家 1fr / 专辑 1fr /
+ *            时长 64 / 格式 56 / 比特率 72 / 采样率·位深 110 / 状态 28 */
+.track-table .track-row {
+  grid-template-columns: 44px 40px minmax(200px, 2fr) 1fr 1fr 64px 56px 72px 110px 28px;
+}
+
+/* 表头：随滚动区一起排布（保持与数据行同宽），sticky 常驻顶部。 */
+.track-row--head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 32px;
+  border-bottom: 1px solid var(--divider);
+  border-radius: 0;
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.track-row--head .numeric,
+.track-row--head .duration,
+.track-row--head .spec {
+  color: var(--text-secondary);
+}
+
+.track-row:not(.track-row--head):hover {
+  background: var(--row-hover);
+}
+
+.track-row.is-selected {
+  background: var(--row-active);
+}
+
+.track-row.is-playing .track-title,
+.track-row.is-playing .track-cell--index,
+.track-row.is-playing .is-playing-icon {
+  color: var(--accent);
+}
+
+.track-row.is-missing {
+  color: var(--text-tertiary);
+  opacity: 0.62;
+}
+
+.track-row.is-missing .track-title,
+.track-row.is-unavailable .track-title {
+  color: var(--text-tertiary);
+}
+
+.track-row.is-unavailable {
+  color: var(--text-tertiary);
+}
+
+/* ---------- 单元格（mockup.css:815-899） ---------- */
+.track-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-cell--cover {
+  display: flex;
+  align-items: center;
+}
+
+.track-cell--index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+}
+
+.track-row:hover .track-cell--index .index-number,
+.track-row:focus-within .track-cell--index .index-number {
+  display: none;
+}
+
+.row-play {
+  display: none;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.track-row:hover .row-play,
+.track-row:focus-within .row-play {
+  display: inline-grid;
+}
+
+.track-row.is-unavailable .row-play,
+.track-row.is-missing .row-play {
+  display: inline-grid;
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.track-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+.track-subtitle {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-row.is-missing .track-subtitle,
+.track-row.is-unavailable .track-subtitle {
+  color: var(--text-tertiary);
+}
+
+.track-status {
+  display: flex;
+  justify-content: flex-end;
+  color: var(--text-tertiary);
+}
+
+/* 缺失/不可播的右侧灰标；tooltip 走 title 属性（语义色由图标变体文件承担）。 */
+.track-status-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.track-row.is-missing .track-status-mark .library-icon {
+  opacity: 0.38;
+}
+
+.track-row.is-unavailable .track-status-mark .library-icon {
+  opacity: 0.25;
+}
+
+.is-playing-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  opacity: 1;
+}
+
+/* ---------- 排序按钮（mockup.css:908-922） ---------- */
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.sort-button .library-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---------- 右键菜单（mockup.css:1994-2032） ---------- */
+.context-menu {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  display: grid;
+  width: 220px;
+  padding: 6px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-float);
+}
+
+.context-item {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.context-item:hover {
+  background: var(--row-hover);
+}
+
+.context-item .shortcut {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+/* 「添加到歌单」子菜单（本任务新增；设计稿只画了 chevron-right，未给子菜单样式）。
+ * hover / focus-within 展开，向左超界时仍按 220px 主菜单宽度向右溢出（可接受）。 */
+.context-item--parent {
+  position: relative;
+  cursor: default;
+}
+
+.context-submenu {
+  position: absolute;
+  top: -6px;
+  left: 100%;
+  display: none;
+  min-width: 180px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-float);
+}
+
+.context-item--parent:hover > .context-submenu,
+.context-item--parent:focus-within > .context-submenu {
+  display: grid;
+}
+
+/* ---------- 响应式（mockup.css:2185-2208，T4.1 已留痕待 T4.3 补回） ---------- */
+@media (max-width: 1100px) {
+  .col-bitrate {
+    display: none;
+  }
+
+  .track-table .track-row {
+    grid-template-columns: 44px 40px minmax(200px, 2fr) 1fr 1fr 64px 56px 110px 28px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .col-spec {
+    display: none;
+  }
+
+  .track-table .track-row {
+    grid-template-columns: 44px 40px minmax(200px, 2fr) 1fr 1fr 64px 56px 28px;
+  }
+}

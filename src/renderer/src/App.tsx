@@ -4,6 +4,10 @@ import { RouterProvider } from 'react-router-dom'
 import { router } from './router'
 // 壳层样式：tokens.css → assets/main.css（含 base.css）之后加载，覆盖其中残留的模板全局排版。
 import './styles/shell.css'
+// T4.3 组件样式：Cover（含 PlayerBar 复用的 .cover 基类）与 TrackList（表格/行/右键菜单）。
+// 在根组件全局引入而非组件内引入——.cover 是壳层原语（PlayerBar T4.1 已用），全局加载不依赖组件树。
+import './styles/cover.css'
+import './styles/tracklist.css'
 
 function App(): React.JSX.Element {
   return <RouterProvider router={router} />
