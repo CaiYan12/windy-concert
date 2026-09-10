@@ -179,16 +179,65 @@ describe('trackRepo', () => {
       track({ id: 'm', title: 'M', filePath: '/m/m.flac', fileName: 'm.flac', fileSize: 999, fileMtime: 42 }),
     ]);
     const found = repo.findByFileIdentity('m.flac', 999, 42);
-    expect(found?.id).toBe('m');
+    expect(found.length).toBe(1);
+    expect(found[0]?.id).toBe('m');
 
-    // available 曲目在 status='missing' 过滤下不返回。
+    // available 曲目在 status='missing' 过滤下不返回（空数组）。
     const noMissing = repo.findByFileIdentity('m.flac', 999, 42, { status: 'missing' });
-    expect(noMissing).toBeNull();
+    expect(noMissing).toEqual([]);
 
     // 置为 missing 后，附加 status='missing' 可命中（move 检测路径）。
     repo.markMissing([]); // 无 except → 全部 available 变 missing
     const missingHit = repo.findByFileIdentity('m.flac', 999, 42, { status: 'missing' });
-    expect(missingHit?.id).toBe('m');
+    expect(missingHit.length).toBe(1);
+    expect(missingHit[0]?.id).toBe('m');
+  });
+
+  it('findByFileIdentity 零命中返回空数组（V1.3 多命中语义）', () => {
+    current = setup();
+    const { repo } = current;
+    expect(repo.findByFileIdentity('none.flac', 1, 2)).toEqual([]);
+  });
+
+  it('findByFileIdentity 多命中返回全部行（相同三元组不同 file_path）', () => {
+    current = setup();
+    const { repo } = current;
+    repo.createMany([
+      track({ id: 'd1', title: 'D1', filePath: '/a/dup.flac', fileName: 'dup.flac', fileSize: 777, fileMtime: 7 }),
+      track({ id: 'd2', title: 'D2', filePath: '/b/dup.flac', fileName: 'dup.flac', fileSize: 777, fileMtime: 7 }),
+    ]);
+    const rows = repo.findByFileIdentity('dup.flac', 777, 7);
+    expect(rows.length).toBe(2);
+    expect(rows.map((r) => r.id).sort()).toEqual(['d1', 'd2']);
+
+    // status 过滤在多命中下仍生效。
+    repo.setStatus(['d1'], 'missing');
+    const avail = repo.findByFileIdentity('dup.flac', 777, 7, { status: 'available' });
+    expect(avail.map((r) => r.id)).toEqual(['d2']);
+    const missing = repo.findByFileIdentity('dup.flac', 777, 7, { status: 'missing' });
+    expect(missing.map((r) => r.id)).toEqual(['d1']);
+  });
+
+  it('listSongs 分页 tiebreaker：重复键下逐页拉取无重复无丢失', () => {
+    current = setup();
+    const { repo } = current;
+    const n = 12;
+    const ids = Array.from({ length: n }, (_, i) => `pg-${String(i).padStart(2, '0')}`);
+    // 全部曲目 playCount 相同（0），主排序键并列 → tiebreaker id ASC 决定全序。
+    repo.createMany(ids.map((id, i) => track({ id, title: `T${i}` })));
+
+    const collected: string[] = [];
+    const limit = 5;
+    for (let offset = 0; ; offset += limit) {
+      const page = repo.listSongs({ sortBy: 'playCount', order: 'desc', limit, offset });
+      collected.push(...page.map((r) => r.id));
+      if (page.length < limit) break;
+    }
+    expect(collected.length).toBe(n); // 恰好全集：无跨页重复、无丢失
+    expect(new Set(collected).size).toBe(n);
+    // tiebreaker 方向固定 ASC：跨页拼接后 id 全序递增。
+    const sorted = [...collected].sort();
+    expect(collected).toEqual(sorted);
   });
 
   it('updateAfterParse 更新指定列（非触发器列）且未更新列保持原值', () => {

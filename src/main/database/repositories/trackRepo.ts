@@ -158,12 +158,14 @@ export interface TrackRepo {
   updateFileIdentity(id: string, identity: { filePath: string }): void;
   setStatus(ids: string[], status: TrackStatus): void;
   markMissing(exceptPathsLower: string[]): void;
+  // V1.3 升格项：返回全部命中（0 命中返回空数组）。唯一性判定交给 service 层（T2.3）——
+  // §3.5a 阶段 B：唯一命中才 adopt，0 或 ≥2 命中均按 create 处理（歧义宁可新建）。
   findByFileIdentity(
     fileName: string,
     size: number,
     mtime: number,
     opts?: FindByIdentityOpts,
-  ): TrackRow | null;
+  ): TrackRow[];
   setFavorite(id: string, favorite: boolean): void;
   incrementPlay(id: string): void;
   listByIds(ids: string[]): TrackRow[];
@@ -207,6 +209,8 @@ export function createTrackRepo(db: Database): TrackRepo {
     `);
 
   // listSongs 的 SQL 由白名单列 + 方向拼接，按 (sortBy,order) 缓存 prepared。
+  // V1.3 升格项：追加次级键 tracks.id ASC（方向固定，与主排序无关）保证全序确定，
+  // 消除重复键下分页跨页重复/丢行（§3.7 分页稳定性）。
   const listStmtCache = new Map<string, Statement>();
   function listStatement(sortBy: SortKey, order: SortOrder) {
     const key = `${sortBy}:${order}`;
@@ -214,7 +218,9 @@ export function createTrackRepo(db: Database): TrackRepo {
     if (!stmt) {
       const col = resolveSortColumn(sortBy);
       const dir = order === 'desc' ? 'DESC' : 'ASC';
-      stmt = db.prepare(`${SELECT_FROM} ORDER BY ${col} ${dir} LIMIT ? OFFSET ?`);
+      stmt = db.prepare(
+        `${SELECT_FROM} ORDER BY ${col} ${dir}, tracks.id ASC LIMIT ? OFFSET ?`,
+      );
       listStmtCache.set(key, stmt);
     }
     return stmt;
@@ -362,7 +368,7 @@ export function createTrackRepo(db: Database): TrackRepo {
     size: number,
     mtime: number,
     opts?: FindByIdentityOpts,
-  ): TrackRow | null {
+  ): TrackRow[] {
     if (opts?.status !== undefined) {
       // 与 setStatus 一致的防御面：status 值经白名单守卫，避免注入非法过滤值。
       if (!VALID_STATUSES.has(opts.status)) {
@@ -375,8 +381,8 @@ export function createTrackRepo(db: Database): TrackRepo {
           AND tracks.file_mtime = ?
           AND tracks.status = ?
       `);
-      const row = stmt.get(fileName, size, mtime, opts.status) as RawTrackRow | undefined;
-      return row ? mapRow(row) : null;
+      const rows = stmt.all(fileName, size, mtime, opts.status) as RawTrackRow[];
+      return rows.map(mapRow);
     }
     const stmt = db.prepare(`
       ${SELECT_FROM}
@@ -384,8 +390,8 @@ export function createTrackRepo(db: Database): TrackRepo {
         AND tracks.file_size = ?
         AND tracks.file_mtime = ?
     `);
-    const row = stmt.get(fileName, size, mtime) as RawTrackRow | undefined;
-    return row ? mapRow(row) : null;
+    const rows = stmt.all(fileName, size, mtime) as RawTrackRow[];
+    return rows.map(mapRow);
   }
 
   function setFavorite(id: string, favorite: boolean): void {

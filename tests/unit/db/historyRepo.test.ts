@@ -102,7 +102,7 @@ describe('historyRepo', () => {
       track({ id: 't2', title: 'Song2', artistId: 1, albumId: 2, artistString: 'A', albumTitle: 'Al2' }),
     ]);
 
-    // t1 两次（不同秒级 played_at，确定性去重，避开 datetime('now') 同秒并列边界）
+    // t1 两次（不同秒级 played_at 的确定性去重；同秒并列场景由下方 recordPlay 用例覆盖）
     insertHistory(db, 't1', '2020-01-01 00:00:01');
     insertHistory(db, 't1', '2020-01-01 00:00:10'); // 最新
     // t2 一次
@@ -131,5 +131,30 @@ describe('historyRepo', () => {
     expect(one.length).toBe(0);
     const all = historyRepo.listRecent(1);
     expect(all.length).toBe(1);
+  });
+
+  it('listRecent 同曲同秒两次 recordPlay 只返回 1 条且为 id 较大者（V1.3 MAX(id) 修复）', () => {
+    current = setup();
+    const { db, historyRepo, trackRepo } = current;
+    db.prepare(`INSERT INTO artists (id, name) VALUES (1, 'A')`).run();
+    db.prepare(`INSERT INTO albums (id, title, artist_id) VALUES (1, 'Al', 1)`).run();
+    trackRepo.createMany([track({ id: 't1', title: 'Song1', artistId: 1, albumId: 1, albumArtist: 'A', albumTitle: 'Al' })]);
+
+    // 自然两次 recordPlay（datetime('now') 秒级粒度，测试内连续执行落在同一秒）。
+    const res1 = historyRepo.recordPlay('t1');
+    const res2 = historyRepo.recordPlay('t1');
+    expect(res2.historyId).toBeGreaterThan(res1.historyId);
+
+    const recent = historyRepo.listRecent(50);
+    // 旧实现（MAX(played_at) JOIN）在同秒并列下会吐出 2 行；MAX(id) 修复后仅 1 行。
+    expect(recent.length).toBe(1);
+    expect(recent[0]!.id).toBe('t1');
+
+    // 同秒两行映射出的 TrackRow 完全一致，「取 id 较大者」由子查询语义直接核对：
+    // GROUP BY track_id 的 MAX(id) 必为较大 historyId，JOIN 仅命中该行。
+    const maxId = (
+      db.prepare(`SELECT MAX(id) m FROM play_history WHERE track_id = 't1'`).get() as { m: number }
+    ).m;
+    expect(maxId).toBe(res2.historyId);
   });
 });

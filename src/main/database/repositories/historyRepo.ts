@@ -55,19 +55,20 @@ export function createHistoryRepo(db: Database): HistoryRepo {
     WHERE id = ?
   `);
 
-  // listRecent（§2 口径去重 SQL）：
-  // 子查询 SELECT track_id, MAX(played_at) FROM play_history GROUP BY track_id 取每曲最近播放时点，
-  // 再 JOIN 回 play_history 与 tracks 取完整曲目行。
-  // 已知边界留痕：datetime('now') 为秒级粒度，同曲同秒两次播放会产生并列 MAX(played_at)，
-  // JOIN 可能吐出重复行。按计划原文实现，不在本任务擅自改为 MAX(id)（保持最小 diff、忠于计划措辞）。
+  // listRecent（§2 口径去重 SQL，V1.3 升格项已修复）：
+  // 子查询 SELECT track_id, MAX(id) FROM play_history GROUP BY track_id——自增 id 与插入顺序一致，
+  // MAX(id) 即每曲最新一条，不再依赖 played_at 判重。
+  // 修复留痕：旧实现用 MAX(played_at) JOIN，datetime('now') 秒级粒度下同曲同秒两次播放
+  // 会产生并列 MAX(played_at)，JOIN 吐出重复行；改用 MAX(id) 后不受秒级并列影响，
+  // 外层 ORDER BY played_at DESC / LIMIT 语义不变。
   const stmtListRecent = db.prepare(`
     SELECT ${TRACK_SELECT_COLUMNS}
     FROM play_history ph
     JOIN (
-      SELECT track_id, MAX(played_at) AS max_played
+      SELECT track_id, MAX(id) AS max_id
       FROM play_history
       GROUP BY track_id
-    ) latest ON latest.track_id = ph.track_id AND latest.max_played = ph.played_at
+    ) latest ON latest.max_id = ph.id
     JOIN tracks ON tracks.id = ph.track_id
     JOIN artists ON artists.id = tracks.artist_id
     ORDER BY ph.played_at DESC
