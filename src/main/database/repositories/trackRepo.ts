@@ -2,6 +2,12 @@
 // 类型仅从相对路径 import shared（main 侧无 @shared 别名）。
 import type { Database, Statement } from 'better-sqlite3';
 import type { TrackRow, SortKey, SortOrder } from '../../../shared/types';
+// T1.3：TrackRow 收口映射（列基底 + mapRow）提取至 rowMapper 单一收口（最小 diff，行为不变）。
+import {
+  TRACK_SELECT_FROM as SELECT_FROM,
+  mapTrackRow as mapRow,
+  type RawTrackRow,
+} from './rowMapper';
 
 // ---------------------------------------------------------------------------
 // 类型
@@ -137,75 +143,8 @@ const VALID_STATUSES: ReadonlySet<string> = new Set(['available', 'missing', 'ig
 // 故 IN 列表按批拆分（正向 IN 可分批组合），NOT IN 不可分批——改用临时表（见 markMissing）。
 const IN_BATCH = 500;
 
-// ---------------------------------------------------------------------------
-// SELECT 基底（含 artists JOIN 取 artistName）——TrackRow 收口映射点。
-// ---------------------------------------------------------------------------
-
-const SELECT_COLUMNS = `
-  tracks.id            AS id,
-  tracks.title         AS title,
-  tracks.artist_id     AS artistId,
-  artists.name         AS artistName,
-  tracks.album_id      AS albumId,
-  tracks.album_title   AS albumTitle,
-  tracks.album_artist  AS albumArtist,
-  tracks.track_number  AS trackNumber,
-  tracks.disc_number   AS discNumber,
-  tracks.year          AS year,
-  tracks.genre         AS genre,
-  tracks.duration      AS duration,
-  tracks.file_path     AS filePath,
-  tracks.format        AS format,
-  tracks.bitrate       AS bitrate,
-  tracks.sample_rate   AS sampleRate,
-  tracks.bit_depth     AS bitDepth,
-  tracks.playable      AS playable,
-  tracks.status        AS status,
-  tracks.cover_id      AS coverId,
-  tracks.favorite      AS favorite,
-  tracks.play_count    AS playCount,
-  tracks.date_added    AS dateAdded,
-  tracks.last_played_at AS lastPlayedAt,
-  tracks.favorited_at  AS favoritedAt
-`;
-
-const SELECT_FROM = `
-SELECT ${SELECT_COLUMNS}
-FROM tracks
-JOIN artists ON artists.id = tracks.artist_id
-`;
-
-type RawTrackRow = Record<string, unknown>;
-
-function mapRow(raw: RawTrackRow): TrackRow {
-  return {
-    id: raw.id as string,
-    title: raw.title as string,
-    artistId: raw.artistId as number,
-    artistName: (raw.artistName as string) ?? '',
-    albumId: raw.albumId as number,
-    albumTitle: raw.albumTitle as string,
-    albumArtist: raw.albumArtist as string,
-    trackNumber: (raw.trackNumber as number | null) ?? null,
-    discNumber: (raw.discNumber as number | null) ?? null,
-    year: (raw.year as number | null) ?? null,
-    genre: (raw.genre as string | null) ?? null,
-    duration: (raw.duration as number) ?? 0,
-    filePath: raw.filePath as string,
-    format: raw.format as string,
-    bitrate: (raw.bitrate as number | null) ?? null,
-    sampleRate: (raw.sampleRate as number | null) ?? null,
-    bitDepth: (raw.bitDepth as number | null) ?? null,
-    playable: (raw.playable as number) === 1,
-    status: raw.status as TrackStatus,
-    coverId: (raw.coverId as string | null) ?? null,
-    favorite: (raw.favorite as number) === 1,
-    playCount: (raw.playCount as number) ?? 0,
-    dateAdded: raw.dateAdded as string,
-    lastPlayedAt: (raw.lastPlayedAt as string | null) ?? null,
-    favoritedAt: (raw.favoritedAt as string | null) ?? null,
-  };
-}
+// T1.3：SELECT_COLUMNS / SELECT_FROM / mapRow 已迁移至 ./rowMapper 单一收口（见文件顶部 import）。
+// 此处仅保留 TrackRepo 专属的工厂逻辑。
 
 // ---------------------------------------------------------------------------
 // 工厂
