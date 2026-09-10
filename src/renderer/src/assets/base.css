@@ -43,6 +43,21 @@ ul {
   list-style: none;
 }
 
+/* T4.0：本地 Lucide 图标基础样式（对照 docs/design/mockups/mockup.css §.library-icon）。
+ * 几何与可访问性走此基础类；尺寸由 Icon 组件的 inline style 覆写。
+ * 颜色固定烘焙于各变体 svg 文件（<img> 无法给 svg 内部路径上色，且规则禁用 CSS mask），
+ * 语义深浅靠 opacity 表达——mockup.css 默认 .6，各语义上下文覆写：
+ *   导航当前项 / icon-button:hover → .92；主按钮 / accent 变体 / 播放中 → 1；
+ *   tertiary / missing / 占位封面 → .38；disabled / 不可播 → .25。 */
+.library-icon {
+  display: block;
+  flex: 0 0 auto;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  opacity: 0.6;
+}
+
 body {
   min-height: 100vh;
   color: var(--color-text);

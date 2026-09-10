@@ -4,3 +4,6 @@ pnpm-lock.yaml
 LICENSE.md
 tsconfig.json
 tsconfig.*.json
+# T4.0：tokens.css 是 docs/design/tokens.css 的原样字节复制（唯一 tokens 源），
+# 格式化会破坏与只读设计基线的字节一致性，故排除。
+src/renderer/src/styles/tokens.css

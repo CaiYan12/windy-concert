@@ -1,0 +1,88 @@
+/* Windy Concert · M0.1 design tokens
+ * Canonical source: docs/design-plan.md §2.
+ * This file is intentionally framework-free and can be copied into renderer CSS.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Background ladder */
+  --bg-sidebar: #0d0d0d;
+  --bg-base: #121212;
+  --bg-elevated: #181818;
+  --bg-input: #242424;
+  --bg-hover: #1f1f1f;
+
+  /* Text ladder */
+  --text-primary: rgba(255, 255, 255, .92);
+  --text-secondary: rgba(255, 255, 255, .60);
+  --text-tertiary: rgba(255, 255, 255, .38);
+  --text-disabled: rgba(255, 255, 255, .25);
+
+  /* Accent and semantic colors */
+  --accent: #1ed760;
+  --accent-hover: #1fdf64;
+  --accent-active: #169c46;
+  --on-accent: #000000;
+  --danger: #e22134;
+  --warning: #faa43a;
+
+  /* Interaction surfaces */
+  --row-hover: rgba(255, 255, 255, .06);
+  --row-active: rgba(255, 255, 255, .10);
+  --divider: rgba(255, 255, 255, .08);
+
+  /* Type scale: 12 / 13 / 14 / 16 / 20 / 28px */
+  --font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", monospace;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-display: 28px;
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --line-height-body: 1.5;
+  --line-height-title: 1.3;
+
+  /* 4px spacing grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Geometry */
+  --radius: 6px;
+  --radius-mini-cover: 4px;
+  --radius-round: 999px;
+  --sidebar-w: 232px;
+  --topbar-h: 56px;
+  --playerbar-h: 72px;
+  --queue-w: 320px;
+  --row-height: 48px;
+  --scrollbar-size: 8px;
+
+  /* Depth: only floating layers use this shadow */
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, .5);
+
+  /* Motion */
+  --duration-feedback: 150ms;
+  --duration-state: 200ms;
+  --duration-drawer: 250ms;
+  --duration-route: 150ms;
+  --duration-toast: 300ms;
+  --duration-eq: .9s;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-in-out: cubic-bezier(.65, 0, .35, 1);
+
+  /* Semantic layering for static mockups and renderer parity */
+  --z-dropdown: 100;
+  --z-panel: 200;
+  --z-toast: 500;
+}
