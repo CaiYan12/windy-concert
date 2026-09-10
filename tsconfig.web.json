@@ -4,7 +4,14 @@
     "src/renderer/src/env.d.ts",
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.tsx",
-    "src/preload/*.d.ts"
+    "src/preload/*.d.ts",
+    "src/preload/index.ts",
+    "src/main/ipc/channels.ts",
+    "src/main/database/repositories/albumRepo.ts",
+    "src/main/database/repositories/artistRepo.ts",
+    "src/main/database/repositories/playlistRepo.ts",
+    "src/main/database/repositories/rowMapper.ts",
+    "src/shared/**/*"
   ],
   "compilerOptions": {
     "composite": true,
