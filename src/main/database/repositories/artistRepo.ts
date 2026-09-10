@@ -30,6 +30,8 @@ export interface ArtistRepo {
     albums: AlbumCard[];
     tracks: TrackRow[];
   };
+  // T3.1：艺术家搜索——name LIKE（§3.5d）；LIMIT 10。
+  search(q: string): ArtistCard[];
 }
 
 export function createArtistRepo(db: Database): ArtistRepo {
@@ -56,6 +58,14 @@ export function createArtistRepo(db: Database): ArtistRepo {
     SELECT id, name, track_count AS trackCount, album_count AS albumCount
     FROM artists
     ORDER BY name ASC
+  `);
+  // 艺术家搜索：name LIKE（§3.5d）；上限 10。
+  const stmtSearchArtists = db.prepare(`
+    SELECT id, name, track_count AS trackCount, album_count AS albumCount
+    FROM artists
+    WHERE name LIKE ?
+    ORDER BY name ASC
+    LIMIT 10
   `);
   const stmtGetArtist = db.prepare(`
     SELECT ${ARTIST_SELECT}
@@ -144,9 +154,15 @@ export function createArtistRepo(db: Database): ArtistRepo {
     return { artist, albums, tracks };
   }
 
+  function search(q: string): ArtistCard[] {
+    const rows = stmtSearchArtists.all(`%${q.trim()}%`) as Record<string, unknown>[];
+    return rows.map(mapArtistCard);
+  }
+
   return {
     upsertArtist,
     listArtists,
     getArtistOverview,
+    search,
   };
 }

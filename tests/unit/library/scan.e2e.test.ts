@@ -124,9 +124,9 @@ function makeCtx(over: Partial<ScanServiceDeps> = {}): Ctx {
     workerFactory: () => worker,
     ...over,
   };
-  // 封面经阶段 E 接缝投递（对齐 T3 生产接线形态）
-  wireCoverPipeline(deps, coverService);
-  const service = createScanService(deps);
+  // 封面经阶段 E 接缝投递（对齐 T3 生产接线形态）：新形态返回注入 onCoverJob 的 deps
+  const wiredDeps = wireCoverPipeline(deps, coverService);
+  const service = createScanService(wiredDeps);
   return { db, musicDir, coversDir, service, coverService };
 }
 

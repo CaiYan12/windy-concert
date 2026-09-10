@@ -301,13 +301,14 @@ describe('coverService', () => {
     }
   });
 
-  it('⑥ wireCoverPipeline：ScanServiceDeps.onCoverJob 注入 coverService.enqueue（T3 接线形态预演）', async () => {
+  it('⑥ wireCoverPipeline：返回注入 onCoverJob 的新 deps（T3 接线新形态预演）', async () => {
     const ctx = makeService();
-    const deps: Pick<ScanServiceDeps, 'onCoverJob'> = {};
-    wireCoverPipeline(deps, ctx.service);
+    // 新形态：传入 Omit<ScanServiceDeps,'onCoverJob'>，返回 ScanServiceDeps（不改写入参）
+    const baseDeps: Omit<ScanServiceDeps, 'onCoverJob'> = { db: ctx.db };
+    const wired = wireCoverPipeline(baseDeps, ctx.service);
 
     // scanService 阶段 E 按 track 粒度投递 → wire 后直达 coverService 队列
-    deps.onCoverJob!({
+    wired.onCoverJob({
       albumId: ctx.albumId,
       source: 'embedded',
       bytes: await makeImage('jpeg'),

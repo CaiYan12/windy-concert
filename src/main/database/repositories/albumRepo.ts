@@ -30,6 +30,8 @@ export interface AlbumRepo {
   recountStats(): void;
   listAlbums(): AlbumCard[];
   getAlbumWithTracks(id: number): { album: AlbumDetail | null; tracks: TrackRow[] };
+  // T3.1：专辑搜索——title LIKE（§3.5d，数量级有限不用 FTS）；LIMIT 10。
+  search(q: string): AlbumCard[];
 }
 
 export function createAlbumRepo(db: Database): AlbumRepo {
@@ -81,6 +83,15 @@ export function createAlbumRepo(db: Database): AlbumRepo {
     ${TRACK_SELECT_FROM}
     WHERE tracks.album_id = ?
     ORDER BY tracks.disc_number, tracks.track_number
+  `);
+  // 专辑搜索：title LIKE（§3.5d，<3 与专辑/艺术家/歌单统一 LIKE）；上限 10。
+  const stmtSearchAlbums = db.prepare(`
+    SELECT ${ALBUM_SELECT}
+    FROM albums
+    JOIN artists ON artists.id = albums.artist_id
+    WHERE albums.title LIKE ?
+    ORDER BY albums.title ASC
+    LIMIT 10
   `);
 
   // -------------------------------------------------------------------------
@@ -137,10 +148,16 @@ export function createAlbumRepo(db: Database): AlbumRepo {
     return { album, tracks };
   }
 
+  function search(q: string): AlbumCard[] {
+    const rows = stmtSearchAlbums.all(`%${q.trim()}%`) as Record<string, unknown>[];
+    return rows.map(mapAlbumCard);
+  }
+
   return {
     upsertAlbum,
     recountStats,
     listAlbums,
     getAlbumWithTracks,
+    search,
   };
 }

@@ -1,7 +1,7 @@
 // T1.4 playlistRepo —— 歌单持久化收口点（§4.3-4：repo 是唯一 SQL 收口点）。
 // 类型仅从相对路径 import shared（main 侧无 @shared 别名）。
 import type { Database } from 'better-sqlite3';
-import type { TrackRow } from '../../../shared/types';
+import type { PlaylistSummary, TrackRow } from '../../../shared/types';
 // T1.3：TrackRow 列基底与映射单一收口于 rowMapper（不 import trackRepo 私有符号）。
 import {
   TRACK_SELECT_COLUMNS,
@@ -44,6 +44,8 @@ export interface PlaylistRepo {
   removeTrack(id: number, trackId: string): void;
   /** §3.4 注释原文语义：事务内 DELETE 全部 + 按 1..n 重插（position 连续、允许重复曲目）。 */
   reorder(id: number, trackIds: string[]): void;
+  // T3.1：歌单搜索——name LIKE（§3.5d）；LIMIT 10；返回搜索下拉所需 PlaylistSummary。
+  search(q: string): PlaylistSummary[];
 }
 
 export function createPlaylistRepo(db: Database): PlaylistRepo {
@@ -110,6 +112,19 @@ export function createPlaylistRepo(db: Database): PlaylistRepo {
   // reorder 用：整批清空歌单后按 1..n 重插（§3.4 注释原文语义）。
   const stmtClearTracks = db.prepare(`
     DELETE FROM playlist_tracks WHERE playlist_id = ?
+  `);
+
+  // 歌单搜索：name LIKE（§3.5d）；聚合 trackCount；上限 10。
+  const stmtSearchPlaylists = db.prepare(`
+    SELECT
+      playlists.id     AS id,
+      playlists.name   AS name,
+      (SELECT COUNT(*) FROM playlist_tracks
+         WHERE playlist_tracks.playlist_id = playlists.id) AS trackCount
+    FROM playlists
+    WHERE playlists.name LIKE ?
+    ORDER BY playlists.name ASC
+    LIMIT 10
   `);
 
   // -------------------------------------------------------------------------
@@ -190,6 +205,15 @@ export function createPlaylistRepo(db: Database): PlaylistRepo {
     tx(id, trackIds);
   }
 
+  function search(q: string): PlaylistSummary[] {
+    const rows = stmtSearchPlaylists.all(`%${q.trim()}%`) as Record<string, unknown>[];
+    return rows.map((raw) => ({
+      id: raw.id as number,
+      name: raw.name as string,
+      trackCount: (raw.trackCount as number) ?? 0,
+    }));
+  }
+
   return {
     create,
     rename,
@@ -199,5 +223,6 @@ export function createPlaylistRepo(db: Database): PlaylistRepo {
     addTracks,
     removeTrack,
     reorder,
+    search,
   };
 }

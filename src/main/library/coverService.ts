@@ -258,11 +258,21 @@ export function createCoverService(deps: CoverServiceDeps): CoverService {
 }
 
 // ---------------------------------------------------------------------------
-// scanService 接线辅助（T3 index.ts 组装时调用；本任务不改 scanService.ts / index.ts，留痕）
+// scanService 接线辅助（T3 index.ts 组装时调用）。
+// 评审裁定新形态：返回注入 onCoverJob 的**新 deps**（`{...deps, onCoverJob}`），
+// 不改写入参（deps 为不可变输入，T3.1 接线更函数式、可组合）。返回 ScanServiceDeps
+// 直接喂给 createScanService。写入口收窄为 Omit<ScanServiceDeps,'onCoverJob'>
+// （其余字段由调用方已备齐）。
 // ---------------------------------------------------------------------------
 
-export function wireCoverPipeline(deps: Pick<ScanServiceDeps, 'onCoverJob'>, cover: CoverService): void {
-  deps.onCoverJob = (job) => cover.enqueue(job);
+export function wireCoverPipeline(
+  deps: Omit<ScanServiceDeps, 'onCoverJob'>,
+  cover: CoverService,
+): ScanServiceDeps {
+  return {
+    ...deps,
+    onCoverJob: (job) => cover.enqueue(job),
+  };
 }
 // T3 组装留痕（coversDropped 观测口径）：scan.log 汇总 coversDropped 时应汇合两个来源——
 //   scanService.coversDropped（未注入 onCoverJob 时的扫描侧丢弃计数）

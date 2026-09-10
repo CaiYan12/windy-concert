@@ -188,6 +188,33 @@ export interface TrackRepo {
   setFavorite(id: string, favorite: boolean): void;
   incrementPlay(id: string): void;
   listByIds(ids: string[]): TrackRow[];
+  // T3.1：搜索曲目——≥3 字符走 tracks_fts MATCH（trigram），<3 回退 LIKE；内部自路由（§3.5d）。
+  search(q: string): TrackRow[];
+  // T3.1：收藏列表——白名单排序键（favorited_at/artist/album/title/playCount）+ id 兜底（§3.7 Liked）。
+  listFavorites(sortBy: string, order?: SortOrder): TrackRow[];
+}
+
+/** §3.5d FTS 转义：双引号包裹 + 内部双引号翻倍，使任意用户输入成为单一短语字面量，
+ *  杜绝 FTS 语法注入（AND/OR/NOT/* 等被当作普通字符）。留痕：仅转义、不截断。 */
+function escapeFts(q: string): string {
+  return `"${q.replace(/"/g, '""')}"`;
+}
+
+/** favorites:list 排序键白名单（§3.7 Liked：favorited_at/artist/album/title/playCount）。 */
+const FAVORITE_SORT_COLUMN_MAP = new Map<string, string>([
+  ['favorited_at', 'tracks.favorited_at'],
+  ['artist', 'artists.name'], // JOIN artists
+  ['album', 'tracks.album_title'], // 注意：album 列为 album_title（T1.2 命名）
+  ['title', 'tracks.title'],
+  ['playCount', 'tracks.play_count'],
+]);
+
+function resolveFavoriteSortColumn(key: string): string {
+  const col = FAVORITE_SORT_COLUMN_MAP.get(key);
+  if (!col) {
+    throw new Error(`trackRepo.listFavorites: 非法 sortBy 键 "${key}"，未命中白名单`);
+  }
+  return col;
 }
 
 /** updateFileIdentity 的可选 patch（T2.3 扩签名）。 */
@@ -471,6 +498,47 @@ export function createTrackRepo(db: Database): TrackRepo {
     return out;
   }
 
+  // T3.1：搜索曲目（§3.5d）。trigram 下限 3 字符——≥3 走 FTS MATCH（已转义防注入），<3 回退 LIKE。
+  // 两路径均由 repo 内部自路由（SQL 收口点职责，留痕）；结果上限 50（§3.5d 分组 Track(50)）。
+  function search(q: string): TrackRow[] {
+    const term = q.trim();
+    if (term.length === 0) return [];
+    if (term.length >= 3) {
+      // FTS MATCH：双引号包裹 + 内部双引号翻倍（escapeFts）；rank 越靠前越相关。
+      const stmt = db.prepare(`
+        ${SELECT_FROM}
+        JOIN tracks_fts ON tracks_fts.rowid = tracks.rowid
+        WHERE tracks_fts MATCH ?
+        ORDER BY tracks_fts.rank
+        LIMIT 50
+      `);
+      const rows = stmt.all(escapeFts(term)) as RawTrackRow[];
+      return rows.map(mapRow);
+    }
+    // <3 字符：LIKE 回退（title / artist_string / album_title 任一命中）；% 通配由用户输入驱动（bind 参数，无注入风险）。
+    const like = `%${term}%`;
+    const stmt = db.prepare(`
+      ${SELECT_FROM}
+      WHERE tracks.title LIKE ? OR tracks.artist_string LIKE ? OR tracks.album_title LIKE ?
+      LIMIT 50
+    `);
+    const rows = stmt.all(like, like, like) as RawTrackRow[];
+    return rows.map(mapRow);
+  }
+
+  // T3.1：收藏列表（§3.7 Liked）。白名单排序键 + tracks.id 兜底保证全序确定（分页稳定）。
+  function listFavorites(sortBy: string, order?: SortOrder): TrackRow[] {
+    const col = resolveFavoriteSortColumn(sortBy);
+    const dir = order === 'desc' ? 'DESC' : 'ASC';
+    const stmt = db.prepare(`
+      ${SELECT_FROM}
+      WHERE tracks.favorite = 1
+      ORDER BY ${col} ${dir}, tracks.id ASC
+    `);
+    const rows = stmt.all() as RawTrackRow[];
+    return rows.map(mapRow);
+  }
+
   return {
     createMany,
     listSongs,
@@ -484,5 +552,7 @@ export function createTrackRepo(db: Database): TrackRepo {
     setFavorite,
     incrementPlay,
     listByIds,
+    search,
+    listFavorites,
   };
 }
