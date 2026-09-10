@@ -9,12 +9,13 @@ import type { ReactElement } from 'react'
  * - 资源经 Vite 静态资源机制（import.meta.glob + ?url&no-inline）加载，electron-vite build 后
  *   作为独立资产文件随产物输出（详见下文 ?no-inline 说明）。
  *
- * 颜色机制（实证，非猜测）：
+ * 颜色机制（实证，非猜测）——本组件唯一的「上色」手段：
  * 读取 docs/design/mockups/assets/lucide/heart.svg 与 heart--accent.svg 可见——
  * <img> 无法给 SVG 内部 <path> 上色，且规则禁止 CSS mask；因此语义色已烘焙进各变体文件
  * （heart.svg => stroke #ffffff；heart--accent.svg => stroke #1ed760）。
- * 即 icons.md 中的 --text-* 与 --accent 语义对应到这组固定色文件，选色靠选对变体文件名。
- * 故本组件的 color 仅作调用方语义标注，不参与运行时着色（见 IconProps.color 注释）。
+ * 即 icons.md 中的 --text-* 与 --accent 语义对应到这组固定色文件：语义色 = 选对变体文件名
+ * （如 heart--accent），层次感再由上下文承担（如 .library-icon 的 opacity）。
+ * 本组件因此不接收 color prop——颜色只能通过 name 选择变体表达。
  */
 
 // Vite 在构建期把每个 svg 解析为本地资源 URL（dev: /src/... 路径；build: /assets/哈希.svg）。
@@ -29,59 +30,76 @@ const ICON_URLS = import.meta.glob('../assets/icons/lucide/*.svg', {
   import: 'default'
 }) as Record<string, string>
 
-export type IconName =
-  | 'arrow-up-down'
-  | 'ban'
-  | 'check--accent'
-  | 'check'
-  | 'chevron-down'
-  | 'chevron-left'
-  | 'chevron-right'
-  | 'chevron-up'
-  | 'corner-down-right'
-  | 'disc-3--cover-night'
-  | 'disc-3--cover-plum'
-  | 'disc-3'
-  | 'file-check-2'
-  | 'file-x-2'
-  | 'folder-plus--on-accent'
-  | 'folder-plus'
-  | 'folder'
-  | 'grip-vertical'
-  | 'heart--accent'
-  | 'heart'
-  | 'history'
-  | 'library--cover-chopin'
-  | 'library'
-  | 'list-music'
-  | 'mic-2--cover-amber'
-  | 'mic-2'
-  | 'more-horizontal'
-  | 'music-2--accent'
-  | 'music-2--cover-blue'
-  | 'music-2'
-  | 'pause--on-accent'
-  | 'pause'
-  | 'pencil'
-  | 'play--on-accent'
-  | 'play'
-  | 'plus--on-accent'
-  | 'plus'
-  | 'refresh-cw'
-  | 'repeat'
-  | 'search'
-  | 'settings'
-  | 'shuffle'
-  | 'skip-back'
-  | 'skip-forward'
-  | 'trash-2'
-  | 'volume-2'
-  | 'x'
+/**
+ * 全部 47 个 vendored 图标名（对应 ../assets/icons/lucide/*.svg 的文件基名，含变体如 heart--accent）。
+ * 这里是 IconName 的唯一来源：联合类型由此派生，避免手写名单与类型两处维护。
+ * 单测用同一 glob 枚举资产集与之做集合相等守卫——手写漏项、文件改名（含多列/少列）都会使守卫失败，
+ * 不再出现「联合仍列旧名、运行时静默返回 null 却无人报错」的静默漂移。
+ */
+export const ICON_NAMES = [
+  'arrow-up-down',
+  'ban',
+  'check--accent',
+  'check',
+  'chevron-down',
+  'chevron-left',
+  'chevron-right',
+  'chevron-up',
+  'corner-down-right',
+  'disc-3--cover-night',
+  'disc-3--cover-plum',
+  'disc-3',
+  'file-check-2',
+  'file-x-2',
+  'folder-plus--on-accent',
+  'folder-plus',
+  'folder',
+  'grip-vertical',
+  'heart--accent',
+  'heart',
+  'history',
+  'library--cover-chopin',
+  'library',
+  'list-music',
+  'mic-2--cover-amber',
+  'mic-2',
+  'more-horizontal',
+  'music-2--accent',
+  'music-2--cover-blue',
+  'music-2',
+  'pause--on-accent',
+  'pause',
+  'pencil',
+  'play--on-accent',
+  'play',
+  'plus--on-accent',
+  'plus',
+  'refresh-cw',
+  'repeat',
+  'search',
+  'settings',
+  'shuffle',
+  'skip-back',
+  'skip-forward',
+  'trash-2',
+  'volume-2',
+  'x'
+] as const
+
+export type IconName = (typeof ICON_NAMES)[number]
 
 /** 尺寸档：16/20/24 为主档；12/15 为表头排序与文件状态图标的密度特例（icons.md）。 */
 export type IconSize = 12 | 15 | 16 | 20 | 24
 
-const ICON_BASE_PATH = '../assets/icons/lucide/'
+/**
+ * 图标目录前缀。glob 模式串必须是字面量（Vite 7 只接受 Literal / 无表达式模板串），
+ * 不能抽成常量再传给 import.meta.glob；故此处从 glob 键反推目录，保证 resolve 用的前缀
+ * 与真实资产键始终同源——目录若要改动，只需改 import.meta.glob 一处，不再有第二处字面量会漂移。
+ */
+const ICON_BASE_PATH = (() => {
+  const sample = Object.keys(ICON_URLS)[0]
+  return sample ? sample.slice(0, sample.lastIndexOf('/') + 1) : ''
+})()
 
 /**
  * 纯函数：图标名 -> 本地资源 URL。
@@ -97,12 +115,6 @@ export interface IconProps {
   name: IconName
   /** 尺寸档（px）。默认 16。 */
   size?: IconSize
-  /**
-   * Token 语义色（文档意图标注）。<img> 无法给 SVG 内部路径上色、且禁用 CSS mask；
-   * 颜色已烘焙进变体文件（如 heart--accent.svg 的 stroke=#1ed760），故 color 不参与渲染着色，
-   * 选色靠选对变体文件名。保留此 prop 以表达调用方语义，便于后续检视与对照 icons.md。
-   */
-  color?: string
   /** 附加 class（始终保留 library-icon）。 */
   className?: string
   /**
@@ -114,6 +126,10 @@ export interface IconProps {
 
 const DEFAULT_SIZE: IconSize = 16
 
+// 同一图标名只告警一次：react-virtuoso 行复用与 React StrictMode 双调用会重复触发渲染，
+// 不去重会刷屏。集合只增不减，模块级生命周期即可。
+const warnedMissing = new Set<string>()
+
 export function Icon({
   name,
   size = DEFAULT_SIZE,
@@ -122,7 +138,8 @@ export function Icon({
 }: IconProps): ReactElement | null {
   const src = resolveIconUrl(name)
   if (!src) {
-    if (typeof console !== 'undefined') {
+    if (typeof console !== 'undefined' && !warnedMissing.has(name)) {
+      warnedMissing.add(name)
       console.warn(
         `[Icon] 未知图标名 "${name}"，已回退为 null。请核对 src/renderer/src/assets/icons/lucide/ 下的文件名。`
       )

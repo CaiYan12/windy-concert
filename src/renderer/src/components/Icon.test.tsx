@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { Icon, resolveIconUrl, type IconName } from './Icon'
+import { Icon, ICON_NAMES, resolveIconUrl, type IconName } from './Icon'
 
 // 5 个代表性图标：覆盖基础色、accent 变体、on-accent 变体、导航/工具图标与 12px 特例档。
 const SAMPLES: IconName[] = ['heart--accent', 'music-2', 'play--on-accent', 'search', 'chevron-up']
@@ -32,10 +32,10 @@ describe('resolveIconUrl（纯函数）', () => {
     for (const name of SAMPLES) {
       const url = resolveIconUrl(name)
       expect(url, `${name} 应解析到本地资源`).toBeTruthy()
-      // 本地资源：不得是外联 http(s)（CDN 被禁止）。
-      expect(url, `${name} 不应是外联 http(s)`).not.toMatch(/^https?:\/\//)
-      expect(url, `${name} 应指向 lucide 资产目录`).toContain('lucide')
-      expect(url, `${name} 应指向具体 svg 文件`).toMatch(/\.svg($|\?)/)
+      // 本地资源：同源相对/绝对路径且是 svg。不断言目录名——生产产物是 [name]-[hash].svg，
+      // 基名不含 lucide 目录，断言目录名会在 build 产物上误报。
+      expect(url, `${name} 不应是外联 http(s)`).not.toMatch(/^https?:/)
+      expect(url, `${name} 应指向具体 svg 文件`).toMatch(/\.svg(\?|$)/)
     }
   })
 
@@ -49,6 +49,26 @@ describe('resolveIconUrl（纯函数）', () => {
       // 不得是 data URI：renderer CSP 为 `img-src 'self'`（不含 data:），内联会被拦截。
       expect(url, `${name} 不应被内联为 data URI`).not.toMatch(/^data:/)
     }
+  })
+
+  it('ICON_NAMES 与 glob 枚举的资产名集合完全相等（双向守卫）', () => {
+    const fromAssets = new Set(Object.keys(ALL_ICON_FILES).map(nameFromKey))
+    const declared = new Set<string>(ICON_NAMES)
+
+    // 无多列：ICON_NAMES 里不能有资产中不存在的名字（改名前残留的旧名）。
+    expect(
+      [...declared].filter((n) => !fromAssets.has(n)),
+      'ICON_NAMES 中列了资产不存在的图标名（疑似资产改名后未同步）'
+    ).toEqual([])
+    // 无少列：资产里不能有 ICON_NAMES 未列出的名字（手写名单漏项）。
+    expect(
+      [...fromAssets].filter((n) => !declared.has(n)),
+      '存在未列入 ICON_NAMES 的资产文件（手写名单漏项）'
+    ).toEqual([])
+    // 无重复项：数组长度即集合大小，否则联合类型与集合语义不一致。
+    expect(declared.size).toBe(ICON_NAMES.length)
+    // 双向过滤已各自为空时即集合相等，这里再直接断言一次作为总体不变量。
+    expect(declared).toEqual(fromAssets)
   })
 
   it('未知名 / 空名返回 undefined', () => {
@@ -90,6 +110,14 @@ describe('Icon 渲染', () => {
     expect(html).toBe('')
     expect(warn).toHaveBeenCalledOnce()
     expect(String(warn.mock.calls[0]?.[0])).toContain('nope')
+    warn.mockRestore()
+  })
+
+  it('同一未知图标名重复渲染只 warn 一次（行复用/StrictMode 防刷屏）', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    renderToStaticMarkup(<Icon name={'nope-dedupe' as IconName} />)
+    renderToStaticMarkup(<Icon name={'nope-dedupe' as IconName} />)
+    expect(warn).toHaveBeenCalledOnce()
     warn.mockRestore()
   })
 })
