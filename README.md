@@ -45,7 +45,7 @@ npm run dist       # 生产构建 + electron-builder --win dir
 Phase 4 已完成 T4.0~T4.10（含收尾评审新增的 T4.9 Songs 翻页 / T4.10 遗忘前置收口，均经评审闭环）。最终状态：345 unit tests / typecheck 0 / e2e 11 passed。
 
 - **Detail 页排序 dead affordance**：AlbumDetail/ArtistDetail 表头排序按钮可见可点但 `onSortChange` 未注入（点击无响应），且 `sortBy="title"` 的 aria-sort 指示与实际 disc→trackNumber 排序不符。→ **T5.6 接线时**禁用或接通，并修正 aria-sort 失真。
-- **songsCount 通道缺失**：listSongs 返回裸数组，Songs 页头不渲染总数、翻页末页判定只能靠行数<limit（整数倍边界落空页靠越界兜底退路缓解）。→ **建议时机：Phase 5**（补 `library:getStats` 或 listSongs 返回 `{items,total}`，一并根治总数显示与末页判定）。
+- ✅ **已解决（T4.11，2026-09-11，用户裁定 getStats 选型）**：新增 `library:getStats` 只读通道（tracks/albums/artists 总数，additive）；Songs 页头副行按设计稿渲染真实总数（含千位分隔与「按X排序」动态插值）；翻页末页判定根治（total 就绪 `offset+limit<total` + 「共 M 页」）；Sidebar「歌曲」徽标接线真实计数（设计稿仅此一项有徽标位）。附：statsStore scan done 分支专属单测欠账（与 libraryStore 同模式）随 Phase 5 顺手补。
 - **Albums/Artists 全量渲染无分页无虚拟化**（Albums.tsx 注释自认）：30k 曲库折算约 600~1000 专辑卡 × ~10 DOM 节点，Phase 8 性能验收首屏挂载大概率暴露。→ **建议时机：T8 前**立项（网格虚拟化或服务端分页）。
 - **covers:ready 渲染层零订阅**：扫描中途已挂载的 Albums/Artists/详情页在封面就绪后不补渲（Songs 页靠 done→refresh 兜底）。→ **建议时机：Phase 7** 扫描接线时一并处理。
 - **electron-builder.yml 仍为模板默认**：appId/productName/publish 指向 example.com、NSIS+mac+linux 三平台全配，与 V1.1 发布形态（build\ 绿色目录 + zip，NSIS 后置）有系统性差距（asarUnpack 已就位）。→ **建议时机：T8** 打包任务系统性重写 target/artifactName/打包脚本。
