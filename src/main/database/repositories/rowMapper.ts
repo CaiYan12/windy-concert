@@ -26,7 +26,11 @@ export const TRACK_SELECT_COLUMNS = `
   tracks.bit_depth     AS bitDepth,
   tracks.playable      AS playable,
   tracks.status        AS status,
-  tracks.cover_id      AS coverId,
+  -- T4.4 前置修复1（用户裁定「渲染层走专辑封面」）：tracks.cover_id 全仓无写入点
+  -- （coverService 只写 albums.cover_id），故曲目封面回退取所属专辑封面。此处由
+  -- tracks.cover_id 改为 albums.cover_id，并随 TRACK_SELECT_FROM 增 JOIN albums。
+  -- 不改扫描管线（coverService/cover.worker 不动）；AlbumCard 自身已走 albums.cover_id，不受影响。
+  albums.cover_id     AS coverId,
   tracks.favorite      AS favorite,
   tracks.play_count    AS playCount,
   tracks.date_added    AS dateAdded,
@@ -34,11 +38,13 @@ export const TRACK_SELECT_COLUMNS = `
   tracks.favorited_at  AS favoritedAt
 `;
 
-/** TrackRow 收口 SELECT 基底：JOIN artists 取 artistName。 */
+/** TrackRow 收口 SELECT 基底：JOIN artists 取 artistName；JOIN albums 取所属专辑封面
+ * （T4.4 前置修复1：曲目封面回填 albums.cover_id，见 TRACK_SELECT_COLUMNS 注释）。 */
 export const TRACK_SELECT_FROM = `
 SELECT ${TRACK_SELECT_COLUMNS}
 FROM tracks
 JOIN artists ON artists.id = tracks.artist_id
+JOIN albums ON albums.id = tracks.album_id
 `;
 
 export type RawTrackRow = Record<string, unknown>;

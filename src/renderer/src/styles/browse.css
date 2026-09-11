@@ -1,0 +1,388 @@
+/* 浏览页样式（T4.4）——自 docs/design/mockups/mockup.css 按组件收口迁移的子集。
+ *
+ * 迁移范围（非整文件拷贝，只取 T4.4 五个浏览页真正用到的规则）：
+ *   .browse-page（容器，承载虚拟滚动高度）/ .page-head / .album-grid / .album-card /
+ *   .card-play / .card-copy / .cover--grid（盒尺寸）/ .artist-list / .artist-row /
+ *   .artist-avatar / .artist-name / .artist-count / .artist-chevron / .hero /
+ *   .hero--album（全项目唯一渐变）/ .hero--artist / .hero-copy / .hero-label /
+ *   .hero-artist / .hero-meta / .hero-actions / .round-action / .section-heading /
+ *   .browse-state / .detail-tracklist。
+ * 来源行号见各条注释（mockup.css:491 / :928 / :935 / :963 / :1058 / :1069 / :1136 /
+ *   :1168 / :1354 / :1359 / :1382 / :1399 / :1406）。
+ * 设计稿里的演示态类（.is-hover-preview / .is-playing / .is-selected / .is-missing /
+ *   .is-unavailable 绑定假数据）一律不迁——播放/选中态属 T5.6+，M0.1 由 :hover / 占位承担。
+ *
+ * 迁移取舍与留痕：
+ * ① 容器高度：T4.3 临时用 .tracklist-page 给 Songs 撑高度（随真实 Songs 页落地已移除，见
+ *    tracklist.css 注释）。本文件 .browse-page 统一承担五个页的「铺满 .main-content 高度 +
+ *    纵向 flex」——这是 react-virtuoso 拿到确定高度的必要前提（TrackList 内部再 flex 让
+ *    .track-list-scroll 吃剩余高度）。网格/列表页（Albums/Artists）非虚拟滚动，用 .browse-scroll
+ *    包一层做内部滚动，避免与 .main-content 的滚动双轨。
+ * ② 着色一律 var(--*)；盒尺寸/渐变用设计稿字面（§3.7 / mockup.css 未 token 化）。
+ *    .hero--album 的 #2a2832 是设计稿字面值（mockup.css:1069），**不在 tokens 里**，硬编码留痕——
+ *    此渐变为全项目唯一允许的 gradient（§3.7 / T4.4 计划）。
+ * ③ 封面盒尺寸解耦（沿用 T4.3 Cover 设计）：.cover--grid / .cover--hero 只管 CSS 盒，size 属性
+ *    （256/512）决定向 wc-cover:// 请求的图像档位（cover.css 已定义 .cover--hero 为 200px 盒）。
+ */
+
+/* ---------- 容器（替代 T4.3 临时 .tracklist-page） ---------- */
+/* .browse-page 同时带 .page-wrap（shell.css:405 提供 max-width/padding）。这里补 flex 列 +
+ * 确定高度，使内部 TrackList 虚拟滚动有可用高度。overflow:hidden 防止与内部滚动双轨。 */
+.browse-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 页头（mockup.css:491）作为 flex 列首项不收缩，避免被 TrackList/网格挤扁。 */
+.page-head {
+  flex: 0 0 auto;
+}
+
+/* 网格/列表页的内部滚动容器（Albums/Artists）：flex 吃剩余高度并自行滚动。 */
+.browse-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-color: var(--text-tertiary) transparent;
+  scrollbar-width: thin;
+}
+
+/* TrackList 在浏览页内作为主滚动区：覆盖 tracklist.css 的 height:100%（百分比在 flex 列里会
+ * 与页头争高），改由 flex 吃剩余高度，virtuoso 才能拿到确定高度。 */
+.browse-page .track-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.browse-page .track-list.detail-tracklist {
+  min-height: 220px;
+}
+
+/* ---------- 页头（mockup.css:491-509） ---------- */
+/* 注：display/对齐/间距已随 .page-head 整体迁移；此处不重复 display（flex 列下仍保持两端对齐）。 */
+.page-head h2 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
+}
+
+.page-head p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+}
+
+/* ---------- 加载/空/错误态（T4.4 新增，皮肤取自既有 tokens） ---------- */
+.browse-state {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-4);
+  text-align: center;
+}
+
+.browse-state-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+}
+
+.browse-state-hint {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 专辑网格（mockup.css:928-928 / :935-944 / :946-961） ---------- */
+/* 仅取 .album-grid（playlist-grid 属 T4.6+ 不迁）。auto-fill 让卡片随宽度自适应换行。 */
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 24px 16px;
+  /* 详情页（ArtistDetail）内联网格不抢高度，保持自然高度；Albums 页用 .browse-scroll 包外层滚动。 */
+  flex: 0 0 auto;
+}
+
+/* .album-card 在 AlbumDetail 内为 <div>，在 Albums 页为 <Link>(<a>)；统一重置为卡片外观。 */
+.album-card {
+  position: relative;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+/* 网格封面盒（替代 mockup.css:946 的 .album-card .cover）。Cover 组件盒尺寸由 className 决定。 */
+.cover--grid {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+}
+
+.album-card .cover {
+  transition: filter var(--duration-state) var(--ease-standard);
+}
+
+.album-card:hover .cover {
+  filter: brightness(1.1);
+}
+
+/* 卡片 hover 播放钮（mockup.css:963-987，仅取 hover 显示分支；演示态 is-* 不迁）。
+ * 底色用 --accent、文字色 --on-accent；<Icon> 渲染 <img>（CSS color 无效，C1 铁律），
+ * 故播放图标取 play--on-accent 变体（黑色烘焙），与绿底天然反差。 */
+.card-play {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity var(--duration-feedback) var(--ease-out),
+    transform var(--duration-feedback) var(--ease-out);
+}
+
+.album-card:hover .card-play,
+.album-card:focus-within .card-play {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.card-copy {
+  min-width: 0;
+  padding-top: 10px;
+}
+
+.card-title,
+.card-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.card-meta {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+
+/* ---------- 艺术家列表（mockup.css:1354-1409） ---------- */
+.artist-list {
+  display: grid;
+  gap: 2px;
+  /* 同专辑网格：Albums/Artists 页用 .browse-scroll 包外层滚动；此处保持自然高度。 */
+  flex: 0 0 auto;
+}
+
+.artist-row {
+  display: grid;
+  min-height: 64px;
+  grid-template-columns: 44px minmax(160px, 1fr) 88px 28px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    background-color var(--duration-feedback) var(--ease-standard),
+    color var(--duration-feedback) var(--ease-standard),
+    opacity var(--duration-feedback) var(--ease-standard);
+}
+
+.artist-row:hover {
+  background: var(--row-hover);
+}
+
+.artist-avatar {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+}
+
+/* 详情页大头像（mockup.css:1128-1134）：覆盖 .artist-avatar 的 44px 为 200px 圆形占位。 */
+.artist-avatar.artist-hero-avatar {
+  width: 200px;
+  height: 200px;
+  flex: 0 0 auto;
+  background: var(--bg-elevated);
+}
+
+.artist-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+.artist-count {
+  color: var(--text-tertiary);
+  text-align: right;
+}
+
+.artist-chevron {
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+}
+
+/* ---------- 详情 Hero（mockup.css:1058-1119） ---------- */
+/* Hero 负边距 -24px 抵消 .page-wrap 的 24px padding，做出整幅出血背景（仅当页根带 .page-wrap）。 */
+.hero {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 280px;
+  align-items: flex-end;
+  gap: 24px;
+  margin: -24px -24px 24px;
+  padding: 40px 24px 24px;
+  background: var(--bg-base);
+}
+
+/* 【全项目唯一允许的渐变】硬编码设计稿字面值 #2a2832（不在 tokens 里，留痕）。§3.7 / T4.4 计划。 */
+.hero--album {
+  background: linear-gradient(110deg, #2a2832 0%, var(--bg-base) 74%);
+}
+
+/* 艺术家 Hero 不叠渐变（唯一渐变仅留给专辑），沿用 .hero 的 --bg-base；占位头像由 .artist-hero-avatar 提供。 */
+.hero--artist {
+  background: var(--bg-base);
+}
+
+.hero-copy {
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+.hero-label {
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero h2 {
+  max-width: 720px;
+  margin: 0;
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+  line-height: var(--line-height-title);
+}
+
+.hero-artist {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--text-secondary);
+}
+
+.hero-meta .dot {
+  width: 3px;
+  height: 3px;
+  align-self: center;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* ---------- 圆形动作钮（mockup.css:1136-1166） ---------- */
+.round-action {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid var(--text-secondary);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-primary);
+  transition:
+    background-color var(--duration-feedback) var(--ease-standard),
+    border-color var(--duration-feedback) var(--ease-standard),
+    color var(--duration-feedback) var(--ease-standard),
+    transform var(--duration-feedback) var(--ease-out);
+}
+
+.round-action--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.round-action:hover {
+  border-color: var(--text-primary);
+  background: var(--row-hover);
+}
+
+.round-action--primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.round-action:active {
+  transform: scale(0.97);
+}
+
+/* ---------- 分区标题（mockup.css:1168-1184） ---------- */
+.section-heading {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 28px 0 12px;
+}
+
+.section-heading h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.section-heading .count {
+  color: var(--text-tertiary);
+}
+
+/* 详情页曲目表：在 Hero 之后作为主滚动区（flex 吃剩余高度，由 .browse-page .track-list 规则承接）。 */
+.detail-tracklist {
+  flex: 1 1 auto;
+  min-height: 0;
+}

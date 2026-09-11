@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDatabase } from '../../../src/main/database/connection';
 import { createTrackRepo, type TrackInsert, type TrackRepo } from '../../../src/main/database/repositories/trackRepo';
+import { createCoverRepo } from '../../../src/main/database/repositories/coverRepo';
 import type { Database } from 'better-sqlite3';
 
 interface Ctx {
@@ -64,6 +65,37 @@ describe('trackRepo', () => {
     expect(row!.favorite).toBe(false);
     expect(row!.playCount).toBe(0);
     expect(typeof row!.dateAdded).toBe('string');
+  });
+
+  // T4.4 前置修复①（用户裁定「渲染层走专辑封面」）的语义锚定：tracks 表自身的 cover_id
+  // 全仓无写入点（coverRepo.setAlbumCover 是封面归属专辑的唯一落点），TrackRow.coverId 必须
+  // 等于所属专辑的 albums.cover_id。评审 M1 变异实证：把 SELECT 列改回 tracks.cover_id 后
+  // 原测试仍全绿（静默语义回退）——本用例使该变异变红。
+  it('曲目封面回填所属专辑：coverId = albums.cover_id（无封面专辑 → null）', () => {
+    current = setup();
+    const { db, repo } = current;
+    // 经生产写入通道落封面（insertCover + setAlbumCover），不走裸 UPDATE。
+    const coverRepo = createCoverRepo(db);
+    const coverId = coverRepo.insertCover({ source: 'embedded' });
+    coverRepo.setAlbumCover(1, coverId); // Album A 有封面；Album B 不落封面
+
+    repo.createMany([
+      track({ id: 't1', title: 'In A', albumId: 1 }),
+      track({
+        id: 't2',
+        title: 'In B',
+        artistId: 2,
+        albumId: 2,
+        albumArtist: 'Artist Two',
+        albumTitle: 'Album B',
+      }),
+    ]);
+
+    // 点查路径（findById）与列表路径（listSongs）都走 TRACK_SELECT 基底，语义必须一致。
+    expect(repo.findById('t1')!.coverId).toBe(coverId);
+    expect(repo.findById('t2')!.coverId).toBeNull();
+    const songs = repo.listSongs({ sortBy: 'title', order: 'asc' });
+    expect(songs.map((r) => r.coverId)).toEqual([coverId, null]); // title asc：In A < In B
   });
 
   it('listSongs 白名单排序：title asc', () => {

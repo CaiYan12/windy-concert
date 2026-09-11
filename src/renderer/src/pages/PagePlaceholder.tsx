@@ -1,53 +1,38 @@
-import { useEffect, type ReactElement } from 'react'
+import { type ReactElement } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useI18n } from '../i18n'
-import { useLibrary } from '../stores/libraryStore'
-import { TrackList } from '../components/TrackList'
+import { Songs } from './Songs'
+import { Albums } from './Albums'
+import { ArtistDetail } from './ArtistDetail'
+import { Artists } from './Artists'
+import { AlbumDetail } from './AlbumDetail'
 
 /**
- * PagePlaceholder —— T4.1 各路由的最小页面占位。
+ * PagePlaceholder —— 路由 → 页面分发器（T4.4 起逐步落地真实页面）。
  *
- * 页面本体（Hero / 网格 / 轨道表 / 表单）按计划在 T4.3~T4.7 逐个落地；本任务只保证路由结构与
- * 导航真实可用。故占位内**不复刻设计稿的 .page-head 页头**——设计稿每页页头文案（如 Songs 的
- * 「全部歌曲 · 30,000 首曲目」）绑定真实数据，且与顶栏标题并存会造成同一屏两处同名标题；
- * 真实页头随 T4.4 起照稿补入。当前路由的可见标识由 Topbar 的 .eyebrow/.page-title 承担。
+ * 历史：T4.1 各路由统一挂占位；T4.3 在 /songs 分支临时渲染真实 <TrackList> 并引入
+ * `#/songs?playing=<id>` 生产后门（用于 e2e 注入播放态 accent 变体断言）。T4.4 用真实
+ * Songs 页替换该分支，并随之一并移除 `?playing=` 后门三件套（PagePlaceholder 钩子 /
+ * tracklist.css 的 .tracklist-page / e2e 对钩子的依赖）——播放态断言改由 T5.6 playerStore
+ * 提供（T4.4~T5.6 e2e 覆盖空窗，T5.6 补齐，见 tests/e2e/tracklist.spec.ts 注释留痕）。
  *
- * T4.3 临时验证入口（报告留痕）：
- *   Songs 路由（'/' 的落地页，见 routes.ts DEFAULT_ROUTE）暂时渲染真实 <TrackList>，用于本任务
- *   的真实渲染验证（e2e + 手动核对六态）。T4.4 会用真实 Songs 页替换本分支——届时 TrackList
- *   转由 Songs 页承载，本文件的 Songs 分支整体移除，PagePlaceholder 退回纯占位。
- *   router.tsx / routes.ts 属 T4.1 冻结文件（不改），故入口只能在此处按 pathname 分流。
+ * router.tsx / routes.ts 属 T4.1 冻结文件（不改），故页面迁移只能在此按 pathname 分流
+ * （探索结论：ROUTE_DEFS 已含 /albums/:id、/artists/:id，router 已将其注册为 PagePlaceholder，
+ * 故带参路由无需改动 router.tsx）。尚未落地的路由（playlists/liked/recent/settings/search）
+ * 仍走纯占位，待各自任务替换。
  */
 export function PagePlaceholder(): ReactElement {
   const { t } = useI18n()
-  const { pathname, search } = useLocation()
-  const library = useLibrary()
+  const { pathname } = useLocation()
 
-  // 首屏取数（store 只在 setSort/setPage/扫描完成后自动 refresh；进入页面需一次显式拉取）。
-  useEffect(() => {
-    void library.refresh()
-  }, [library.refresh])
+  // ---- T4.4 已落地页面 ----
+  if (pathname === '/songs') return <Songs />
+  if (pathname === '/albums') return <Albums />
+  if (pathname.startsWith('/albums/')) return <AlbumDetail />
+  if (pathname === '/artists') return <Artists />
+  if (pathname.startsWith('/artists/')) return <ArtistDetail />
 
-  if (pathname === '/songs') {
-    // T4.3 临时验证钩子（报告留痕，随本分支在 T4.4 一并移除）：真实播放态由 T5.6 的 playerStore
-    // 提供，当前无 store 可接线；e2e 以 `#/songs?playing=<id>` 注入 playingTrackId，用于断言
-    // 播放行图标走 accent 变体（C1）。非该 query 时行为与原先完全一致。
-    const playingTrackId = new URLSearchParams(search).get('playing') ?? undefined
-    return (
-      <div className="page-wrap tracklist-page">
-        <TrackList
-          songs={library.songs}
-          loading={library.loading}
-          error={library.error}
-          sortBy={library.params.sortBy}
-          order={library.params.order}
-          onSortChange={library.setSort}
-          playingTrackId={playingTrackId}
-        />
-      </div>
-    )
-  }
-
+  // ---- 尚未落地的路由：纯占位（仅服务未实现页面，避免死链） ----
   return (
     <div className="page-wrap">
       <p className="muted">{t('page.placeholder')}</p>

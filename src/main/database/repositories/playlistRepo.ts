@@ -79,11 +79,14 @@ export function createPlaylistRepo(db: Database): PlaylistRepo {
   `);
 
   // get(id) 曲目：复用 rowMapper 的 TRACK_SELECT_COLUMNS 基底 + 自有 FROM/JOIN/ORDER。
+  // T4.4 前置修复1：TRACK_SELECT_COLUMNS 现引用 albums.cover_id，故此处须 JOIN albums
+  // （与 TRACK_SELECT_FROM 一致），否则预备语句报 no such column: albums.cover_id。
   const stmtGetTracks = db.prepare(`
     SELECT ${TRACK_SELECT_COLUMNS}
     FROM playlist_tracks
     JOIN tracks ON tracks.id = playlist_tracks.track_id
     JOIN artists ON artists.id = tracks.artist_id
+    JOIN albums ON albums.id = tracks.album_id
     WHERE playlist_tracks.playlist_id = ?
     ORDER BY playlist_tracks.position ASC
   `);

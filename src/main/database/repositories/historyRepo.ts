@@ -71,6 +71,7 @@ export function createHistoryRepo(db: Database): HistoryRepo {
     ) latest ON latest.max_id = ph.id
     JOIN tracks ON tracks.id = ph.track_id
     JOIN artists ON artists.id = tracks.artist_id
+    JOIN albums ON albums.id = tracks.album_id
     ORDER BY ph.played_at DESC, ph.id DESC
     LIMIT ?
   `);

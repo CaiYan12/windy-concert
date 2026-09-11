@@ -87,19 +87,15 @@ test('TrackList × Cover 真实渲染：七行 / 缺失 / 不可播 / 排序 / �
     fs.rmSync(path.join(musicDir, '01-夜曲.mp3'))
     await runScan()
 
-    // ④ 重载页面：PagePlaceholder（临时验证入口）挂载即 library.refresh()，经真实 IPC 取回 7 行。
-    //    C1 播放图标变体断言需要一行 playing 态，而真实播放态属 T5.6（playerStore 未建）——
-    //    经 PagePlaceholder 的临时验证钩子 `#/songs?playing=<id>` 注入 playingTrackId（该钩子随
-    //    本分支在 T4.4 一并移除，非生产行为）。
-    const firstSongId = await page.evaluate(async () => {
-      const api = (window as unknown as { api: ApiLike }).api
-      const rows = await api.library.listSongs({ sortBy: 'title', order: 'asc', limit: 1 })
-      return rows[0]?.id ?? null
+    // ④ 重载页面到 #/songs：PagePlaceholder 现为真实 Songs 页（T4.4 起），挂载即 library.refresh()，
+    //    经真实 IPC 取回 7 行。
+    //    【T4.4 已移除 `?playing=` 生产后门三件套】——原步骤借 PagePlaceholder 的临时钩子
+    //    `#/songs?playing=<id>` 注入 playingTrackId 来断言 C1 播放行 accent 变体；该后门随真实
+    //    Songs 页落地一并删除（非生产行为）。播放态（is-playing）的真实渲染断言改由 T5.6
+    //    playerStore 接入后补齐——**T4.4~T5.6 之间存在 e2e 覆盖空窗**，T5.6 填回。
+    await page.evaluate(() => {
+      window.location.hash = '#/songs'
     })
-    expect(firstSongId).toBeTruthy()
-    await page.evaluate((id) => {
-      window.location.hash = `#/songs?playing=${id}`
-    }, firstSongId)
     await page.reload()
     await page.waitForSelector('.track-table[role="table"]')
     await page.waitForFunction(
@@ -116,10 +112,9 @@ test('TrackList × Cover 真实渲染：七行 / 缺失 / 不可播 / 排序 / �
     await expect(page.locator('.track-row--head')).toHaveCount(1)
     await expect(page.locator('.track-row:not(.track-row--head)')).toHaveCount(7)
 
-    // ⑤.5 C1：播放行图标必须走 accent 变体（music-2--accent），而非靠 CSS color 上色的 music-2。
-    const playingRow = page.locator('.track-row.is-playing')
-    await expect(playingRow).toHaveCount(1)
-    await expect(playingRow.locator('.is-playing-icon')).toHaveAttribute('src', /music-2--accent/)
+    // ⑤.5 C1 播放行 accent 变体断言：已随 `?playing=` 后门移除（见步骤④留痕）。
+    //    **覆盖空窗（T4.4~T5.6）**：真实播放态 is-playing 由 T5.6 playerStore 驱动，届时在本
+    //    e2e 重新注入并断言 `.track-row.is-playing .is-playing-icon` 的 src 命中 music-2--accent。
 
     // ⑥ 缺失行：右侧 file-x-2 灰标 + 副标题「文件缺失」+ 行内播放禁用。
     //    双击拦截由单测锚定：src/renderer/src/components/TrackList.test.tsx 的

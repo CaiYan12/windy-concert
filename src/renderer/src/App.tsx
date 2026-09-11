@@ -8,6 +8,8 @@ import './styles/shell.css'
 // 在根组件全局引入而非组件内引入——.cover 是壳层原语（PlayerBar T4.1 已用），全局加载不依赖组件树。
 import './styles/cover.css'
 import './styles/tracklist.css'
+// T4.4：浏览页（Songs/Albums/Artists/详情）布局样式，全局引入（与 cover/tracklist 同层生效）。
+import './styles/browse.css'
 
 function App(): React.JSX.Element {
   return <RouterProvider router={router} />

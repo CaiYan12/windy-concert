@@ -36,7 +36,8 @@ const ROOT = path.resolve(import.meta.dirname, '../../..');
 /** 待检样式文件（相对仓库根）。 */
 const STYLE_FILES = [
   'src/renderer/src/styles/tracklist.css',
-  'src/renderer/src/styles/cover.css'
+  'src/renderer/src/styles/cover.css',
+  'src/renderer/src/styles/browse.css'
 ] as const;
 
 /** 去掉 CSS 注释（/* ... *\/），避免「注释里提到过这个选择器」造成假绿。 */
@@ -120,6 +121,42 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
   {
     selector: '.is-playing-icon',
     guards: '播放图标尺寸盒（accent 变体由文件名承担，此处只管盒）',
+    strict: true
+  },
+  // --- T4.4 浏览页（browse.css）语义关键类 ---
+  {
+    selector: '.browse-page',
+    guards: '五个浏览页容器：flex 列 + 确定高度，是 react-virtuoso 拿到虚拟滚动高度的必要前提；缺则曲目表塌陷不可见',
+    strict: true
+  },
+  {
+    selector: '.album-card',
+    guards: '专辑卡片：position:relative 是 .card-play 绝对定位锚点，兼卡片外观；缺则播放钮错位、卡片无样式',
+    strict: true
+  },
+  {
+    selector: '.browse-state',
+    guards: '五页共用的空/加载/错误态容器（缺则降级为无样式流式 div，状态不可辨识）',
+    strict: true
+  },
+  {
+    selector: '.card-play',
+    guards: '卡片 hover 播放钮：定位/尺寸/显隐（opacity 0→1）；缺则按钮不可见不可点',
+    strict: true
+  },
+  {
+    selector: '.artist-row',
+    guards: '艺术家列表行：网格布局 + hover 底色锚点；缺则行塌陷、hover 态丢失',
+    strict: true
+  },
+  {
+    selector: '.round-action',
+    guards: '详情页播放/随机圆形钮盒（尺寸/圆角/边框）；缺则按钮无尺寸不可点',
+    strict: true
+  },
+  {
+    selector: '.hero--album',
+    guards: '全项目唯一允许的渐变（§3.7 / T4.4）；缺则 Hero 平涂，违背视觉契约',
     strict: true
   }
 ]

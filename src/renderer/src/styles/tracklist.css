@@ -15,15 +15,10 @@
  */
 
 /* ---------- 容器（virtuoso 滚动区 + 空/加载/错误态） ---------- */
-/* T4.3 临时：Songs 占位页容器（PagePlaceholder 用；T4.4 真实 Songs 页落地后随该分支一并移除）。
-   .page-wrap 处于 .main-content 的确定高度轨道内，令其铺满高度并纵向 flex，使 .track-list 高度确定，
-   虚拟滚动才能拿到可用高度。 */
-.tracklist-page {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
+/* T4.4：Songs 等页的容器高度由 styles/browse.css 的 .browse-page 承担（替代 T4.3 的临时
+   .tracklist-page 容器规则，随真实 Songs 页落地一并移除——见 T4.4 前置移除项②）。
+   .page-wrap 处于 .main-content 的确定高度轨道内，.browse-page 令其铺满高度并纵向 flex，
+   使 .track-list 高度确定，虚拟滚动才能拿到可用高度。 */
 .track-list {
   display: flex;
   flex-direction: column;
