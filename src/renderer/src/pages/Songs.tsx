@@ -5,6 +5,7 @@ import { useLibrary } from '../stores/libraryStore'
 import { usePlayerStore, usePlayingTrackId } from '../stores/playerStore'
 import { useToastStore } from '../stores/toastStore'
 import { ensureStatsLoaded, formatCount, useStats } from '../stores/statsStore'
+import { useFavorites, useFavoritesStore } from '../stores/favoritesStore'
 import { playContext } from './playerBridge'
 import { TrackList } from '../components/TrackList'
 
@@ -51,6 +52,9 @@ export function Songs(): ReactElement {
   // T5.7 缺口②闭合：曲目表 C1 accent 接线——把当前播放曲目 id 下传给 TrackList，
   // 使对应行渲染 .track-row.is-playing（跨上下文 id 不匹配则不亮，正确行为）。
   const playingTrackId = usePlayingTrackId()
+  // T6.1：收藏切片接线——列表行 ♡/♥ 与右键「收藏/取消收藏」以切片为唯一事实源（loaded 前回退
+  // track.favorite，避免把未加载的空集合当成「全未收藏」）。toggle 乐观 + 失败回滚在切片内。
+  const favorites = useFavorites()
 
   // T5.6：双击整队（上下文 = 当前页视图 songs，startIndex = 当页行号）；右键菜单接 playNext/enqueue；
   // 不可播双击 → 轻量 toast「M0.1 暂不支持此格式播放」。store 动作经 getState 调，避免无谓重渲染。
@@ -65,6 +69,10 @@ export function Songs(): ReactElement {
   }
   const handleUnplayableActivate = (): void => {
     useToastStore.getState().showToast(t('player.unsupportedFormat'))
+  }
+  // T6.1：行 ♡/右键收藏 → 切片 toggle（next 由行的当前收藏态推导，避免重复取反）。
+  const handleToggleFavorite = (track: TrackRow, next: boolean): void => {
+    void useFavoritesStore.getState().toggle(track.id, next)
   }
 
   useEffect(() => {
@@ -119,6 +127,8 @@ export function Songs(): ReactElement {
         onPlayNext={handlePlayNext}
         onEnqueue={handleEnqueue}
         onUnplayableActivate={handleUnplayableActivate}
+        favoriteIds={favorites.loaded ? favorites.favoriteIds : undefined}
+        onToggleFavorite={handleToggleFavorite}
       />
       {showPagination && (
         <nav className="songs-pagination" aria-label={t('songs.pagination.label')}>

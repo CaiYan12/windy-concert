@@ -35,6 +35,9 @@ export type { TrackContextMenuProps } from './TrackContextMenu'
  *   · 播放/队列：本任务**不创建 playerStore**（越界，属 T5.6）。「下一首播放 / 添加到队列」经
  *     onPlayNext / onEnqueue 注入，缺省为 no-op；playingTrackId 由消费方给定，缺省不渲染假播放行。
  *   · 收藏：纯视觉（按 track.favorite 渲染 ♡/♥），改动经可选 onToggleFavorite 回调外抛。
+ *     T6.1：可选 favoriteIds（ReadonlySet<string>）——提供时以其为**收藏唯一事实源**（覆盖
+ *     track 列表数据里可能陈旧的 favorite 快照），未提供则回退 track.favorite。本组件仍不
+ *     import 任何 store：切片由消费方经 props 注入（合成派生 track 传下行与右键菜单）。
  *   · 双击 → onActivate（传 track + 行内 index）；missing / 不可播行被拦截改走
  *     onUnplayableActivate（T5.6 不可播 toast，与 onActivate 互斥）。
  *
@@ -177,6 +180,12 @@ export interface TrackListProps {
   onPlayNext?: (track: TrackRow) => void
   onEnqueue?: (track: TrackRow) => void
   onToggleFavorite?: (track: TrackRow, next: boolean) => void
+  /**
+   * T6.1：收藏集合（favoritesStore.favoriteIds）。提供时行内 ♡/♥ 与右键菜单一律读它
+   * （覆盖 track.favorite 的陈旧快照）；省略则回退 track.favorite。切片未加载时消费方应
+   * 省略本 prop（loaded=false 时集合不完整，见 favoritesStore.useFavorites 说明）。
+   */
+  favoriteIds?: ReadonlySet<string>
   /** 双击 / 行内播放 → 播放该曲目（传 track 与行内 index，供整队 playContext 定位）。 */
   onActivate?: (track: TrackRow, index: number) => void
   /** 双击 / 行内播放作用到 missing / 不可播曲目时触发（T5.6 不可播 toast）。 */
@@ -201,6 +210,7 @@ export function TrackList({
   onPlayNext,
   onEnqueue,
   onToggleFavorite,
+  favoriteIds,
   onActivate,
   onUnplayableActivate,
   playlists = [],
@@ -220,24 +230,32 @@ export function TrackList({
 
   // itemContent 用 useCallback + computeItemKey 用 id：行复用时不丢 React 身份（virtuoso 建议形态）。
   const itemContent = useCallback(
-    (index: number, track: TrackRow) => (
-      <TrackRowItem
-        track={track}
-        index={index}
-        isPlaying={playingTrackId === track.id}
-        isSelected={selectedId === track.id}
-        onSelect={setSelectedId}
-        onActivate={onActivate}
-        onUnplayableActivate={onUnplayableActivate}
-        onToggleFavorite={onToggleFavorite}
-        onOpenMenu={(event, t2) => {
-          menuTriggerRef.current = event.currentTarget as HTMLElement
-          setSelectedId(t2.id)
-          setMenu({ x: event.clientX, y: event.clientY, track: t2 })
-        }}
-      />
-    ),
-    [playingTrackId, selectedId, onActivate, onUnplayableActivate, onToggleFavorite]
+    (index: number, track: TrackRow) => {
+      // T6.1：favoriteIds 提供时，合成一个「收藏态以切片为准」的派生 track 传下行与菜单——
+      // 纯展示组件只是消费外部注入的有效收藏态，自身不 import store（纪律不破）。省略则原样
+      // 传 track（回退 track.favorite，兼容未接收藏切片的消费方）。
+      const view = favoriteIds
+        ? { ...track, favorite: favoriteIds.has(track.id) }
+        : track
+      return (
+        <TrackRowItem
+          track={view}
+          index={index}
+          isPlaying={playingTrackId === view.id}
+          isSelected={selectedId === view.id}
+          onSelect={setSelectedId}
+          onActivate={onActivate}
+          onUnplayableActivate={onUnplayableActivate}
+          onToggleFavorite={onToggleFavorite}
+          onOpenMenu={(event, t2) => {
+            menuTriggerRef.current = event.currentTarget as HTMLElement
+            setSelectedId(t2.id)
+            setMenu({ x: event.clientX, y: event.clientY, track: t2 })
+          }}
+        />
+      )
+    },
+    [playingTrackId, selectedId, onActivate, onUnplayableActivate, onToggleFavorite, favoriteIds]
   )
 
   const computeItemKey = useCallback((index: number) => songs[index]?.id ?? index, [songs])

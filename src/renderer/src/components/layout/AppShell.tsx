@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 import { usePlayerStore } from '../../stores/playerStore'
+import { ensureFavoritesLoaded } from '../../stores/favoritesStore'
 import { PlayerBar } from './PlayerBar'
 import { QueuePanel } from './QueuePanel'
 import { Sidebar } from './Sidebar'
@@ -47,6 +48,9 @@ export function AppShell(): ReactElement {
   // StrictMode 开发态 effect 双调用不重复请求 settings:get。
   useEffect(() => {
     void usePlayerStore.getState().ensureVolumeRestored()
+    // T6.1：启动即建立收藏集合（favorites:list）——列表行 ♡ 与播放栏 ♥ 在此之前回退
+    // track.favorite；ensureLoaded 幂等（已加载/取数在飞时不重复请求），StrictMode 双调用无害。
+    ensureFavoritesLoaded()
   }, [])
 
   /** 关闭队列面板：置关 + 焦点回落触发按钮（无触发记录时 no-op，如程序化初次关闭）。 */

@@ -132,7 +132,7 @@
           showToast('已添加到队列', '夜曲将在当前曲目之后播放');
         } else if (action === 'favorite') {
           button.classList.toggle('is-favorite');
-          showToast(button.classList.contains('is-favorite') ? '已收藏' : '已取消收藏', '喜欢的音乐已同步');
+          showToast(button.classList.contains('is-favorite') ? '已收藏' : '已取消收藏', '收藏已同步');
         } else if (action === 'scan') {
           showToast('正在扫描音乐库', '1,234 / 30,000 · 解析中');
         }

@@ -4,6 +4,7 @@ import type { TrackRow } from '../../../shared/types'
 import { useI18n } from '../i18n'
 import { usePlayerStore, usePlayingTrackId } from '../stores/playerStore'
 import { useToastStore } from '../stores/toastStore'
+import { useFavorites, useFavoritesStore } from '../stores/favoritesStore'
 import { api } from '../ipc/client'
 import { Cover } from '../components/Cover'
 import { Icon } from '../components/Icon'
@@ -25,6 +26,8 @@ export function ArtistDetail(): ReactElement {
   const artistId = Number(id)
   // T5.7 缺口②闭合：曲目表 C1 accent 接线——当前播放曲目 id 下传 TrackList（详见 Songs.tsx 留痕）。
   const playingTrackId = usePlayingTrackId()
+  // T6.1：收藏切片接线（详见 Songs.tsx 留痕）——艺术家详情曲目行 ♡/右键收藏同样以切片为准。
+  const favorites = useFavorites()
   const { data, loading, error } = useBrowseData(
     () => api.library.getArtist(artistId),
     [artistId]
@@ -39,6 +42,10 @@ export function ArtistDetail(): ReactElement {
   }
   const handleUnplayableActivate = (): void => {
     useToastStore.getState().showToast(t('player.unsupportedFormat'))
+  }
+  // T6.1：行 ♡/右键收藏 → 切片 toggle（详见 Songs.tsx 留痕）。
+  const handleToggleFavorite = (track: TrackRow, next: boolean): void => {
+    void useFavoritesStore.getState().toggle(track.id, next)
   }
 
   if (error) {
@@ -165,6 +172,8 @@ export function ArtistDetail(): ReactElement {
         onPlayNext={handlePlayNext}
         onEnqueue={handleEnqueue}
         onUnplayableActivate={handleUnplayableActivate}
+        favoriteIds={favorites.loaded ? favorites.favoriteIds : undefined}
+        onToggleFavorite={handleToggleFavorite}
       />
     </div>
   )

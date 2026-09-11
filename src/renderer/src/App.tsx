@@ -10,6 +10,9 @@ import './styles/cover.css'
 import './styles/tracklist.css'
 // T4.4：浏览页（Songs/Albums/Artists/详情）布局样式，全局引入（与 cover/tracklist 同层生效）。
 import './styles/browse.css'
+// T6.1：Liked 页样式（第二处获准渐变 .hero--liked + 排序下拉）。必须在 browse.css 之后——
+// .hero--liked 需覆盖 .hero 的 min-height（同特异性，靠源码顺序取胜，见 liked.css 头注释）。
+import './styles/liked.css'
 // T4.5：搜索（SearchBox 下拉 + SearchResults 结果页 + 紧凑曲目表列格）。
 // 必须在 tracklist.css 之后加载：.track-table--compact .track-row 与 .track-table .track-row
 // 同特异性（0-2-0），靠后加载覆盖为 6 列格（见 search.css 文件头说明）。

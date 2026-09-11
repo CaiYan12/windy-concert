@@ -38,6 +38,7 @@ const STYLE_FILES = [
   'src/renderer/src/styles/tracklist.css',
   'src/renderer/src/styles/cover.css',
   'src/renderer/src/styles/browse.css',
+  'src/renderer/src/styles/liked.css',
   'src/renderer/src/styles/search.css',
   'src/renderer/src/styles/shell.css',
   'src/renderer/src/styles/toast.css'
@@ -159,7 +160,18 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
   },
   {
     selector: '.hero--album',
-    guards: '全项目唯一允许的渐变（§3.7 / T4.4）；缺则 Hero 平涂，违背视觉契约',
+    guards: '第一处获准渐变（§3.7 / T4.4；第二处 .hero--liked 见 T6.1 §4.6）；缺则 Hero 平涂，违背视觉契约',
+    strict: true
+  },
+  // --- T6.1 Liked 页（liked.css）语义关键类 ---
+  {
+    selector: '.hero--liked',
+    guards: '第二处获准渐变（design-plan §4.6：主色绿 12% 透明度 → --bg-base）；缺则 Liked Hero 平涂，违背视觉契约',
+    strict: true
+  },
+  {
+    selector: '.sort-control',
+    guards: 'Liked 排序下拉盒（arrow-up-down + select 的尺寸/边框锚点）；缺则下拉降级为无样式文本不可辨',
     strict: true
   },
   // --- T4.5 搜索（search.css）语义关键类 ---

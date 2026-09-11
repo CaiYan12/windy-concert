@@ -4,7 +4,8 @@ import { useI18n } from '../../i18n'
 import { Icon } from '../Icon'
 import { Cover } from '../Cover'
 import { Equalizer } from '../Equalizer'
-import { usePlayer, usePlayerStore } from '../../stores/playerStore'
+import { usePlayer } from '../../stores/playerStore'
+import { useFavorites } from '../../stores/favoritesStore'
 import type { RepeatMode } from '../../player/queue'
 
 /**
@@ -23,8 +24,10 @@ import type { RepeatMode } from '../../player/queue'
  * disabled 语义：currentTrack 为空（空队列）时全部控件 disabled（占位期既有 --text-disabled 视觉）。
  *   · 队列按钮在空队列下同样 disabled；currentTrack 存在时启用，点击触发可选回调 onToggleQueue
  *     （T5.5 队列面板的开关接入点；T5.4 仅占位接线，见报告取舍）。
- * 收藏乐观更新：点击立即本地更新 store 内 currentTrack.favorite 并经 favorites:set 上报；IPC 失败仅告警
- *   不回滚（T5.4 上报取舍）。
+ * 收藏（T6.1）：改走 favoritesStore 共享切片——与曲目行 ♡ 同一事实源，三处（列表 / 播放栏 /
+ *   Liked 页）即时同步。点击经切片 toggle（乐观 + IPC 失败回滚 + warn），不再对
+ *   currentTrack.favorite 做局部更新（T5.4 的局部乐观已废弃：那正是「播放栏与列表不同步」的根因）。
+ *   ♥ 显示：切片 loaded 时读 isFavorite(id)，未加载回退 currentTrack.favorite。
  */
 export interface PlayerBarProps {
   /**
@@ -51,14 +54,6 @@ function fractionFromClientX(el: HTMLElement, clientX: number): number {
   return Math.min(1, Math.max(0, x))
 }
 
-/** favorites:set 上报通道（window.api，结构性类型，避免 import electron）。 */
-function reportFavorite(trackId: string, favorite: boolean): void {
-  const api = (globalThis.window as unknown as {
-    api?: { favorites?: { set: (id: string, fav: boolean) => void | Promise<void> } }
-  }).api
-  void api?.favorites?.set(trackId, favorite)
-}
-
 /** Repeat 三态轮转顺序（设计稿/计划：off → all → one → off）。 */
 const REPEAT_CYCLE: RepeatMode[] = ['off', 'all', 'one']
 
@@ -82,6 +77,15 @@ export function PlayerBar({ onToggleQueue }: PlayerBarProps = {}): ReactElement 
     setShuffle,
     setRepeat,
   } = usePlayer()
+
+  // T6.1：收藏态读共享切片（loaded 前回退 currentTrack.favorite，避免未加载的空集合误显示 ♡）。
+  const favorites = useFavorites()
+  const favorite =
+    currentTrack !== null
+      ? favorites.loaded
+        ? favorites.isFavorite(currentTrack.id)
+        : currentTrack.favorite
+      : false
 
   const hasTrack = currentTrack !== null
 
@@ -149,19 +153,11 @@ export function PlayerBar({ onToggleQueue }: PlayerBarProps = {}): ReactElement 
     }
   }
 
-  const handleFavorite = useCallback(async () => {
+  // T6.1：经共享切片切换收藏（乐观 + 失败回滚在切片内），与列表 ♡ 同步。next 省略 → 切片取反。
+  const handleFavorite = useCallback(() => {
     if (!currentTrack) return
-    const nextFav = !currentTrack.favorite
-    // 乐观更新：先改 store 内 currentTrack.favorite 快照，UI 立即反映。
-    usePlayerStore.setState((s) =>
-      s.currentTrack ? { currentTrack: { ...s.currentTrack, favorite: nextFav } } : {}
-    )
-    try {
-      reportFavorite(currentTrack.id, nextFav)
-    } catch (err) {
-      console.warn('[player] 收藏上报失败', err)
-    }
-  }, [currentTrack])
+    void favorites.toggle(currentTrack.id)
+  }, [currentTrack, favorites.toggle])
 
   const cycleRepeat = useCallback(() => {
     const idx = REPEAT_CYCLE.indexOf(playMode.repeat)
@@ -205,14 +201,14 @@ export function PlayerBar({ onToggleQueue }: PlayerBarProps = {}): ReactElement 
         )}
 
         <button
-          className={`icon-button player-like${currentTrack?.favorite ? ' is-favorite' : ''}`}
+          className={`icon-button player-like${favorite ? ' is-favorite' : ''}`}
           type="button"
-          aria-label={currentTrack?.favorite ? t('track.unfavorite') : t('track.favorite')}
-          aria-pressed={currentTrack?.favorite ?? false}
+          aria-label={favorite ? t('track.unfavorite') : t('track.favorite')}
+          aria-pressed={favorite}
           onClick={handleFavorite}
           disabled={!hasTrack}
         >
-          <Icon name={currentTrack?.favorite ? 'heart--accent' : 'heart'} />
+          <Icon name={favorite ? 'heart--accent' : 'heart'} />
         </button>
       </div>
 

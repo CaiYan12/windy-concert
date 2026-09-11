@@ -4,6 +4,7 @@ import type { TrackRow } from '../../../shared/types'
 import { useI18n } from '../i18n'
 import { usePlayerStore, usePlayingTrackId } from '../stores/playerStore'
 import { useToastStore } from '../stores/toastStore'
+import { useFavorites, useFavoritesStore } from '../stores/favoritesStore'
 import { api } from '../ipc/client'
 import { Cover } from '../components/Cover'
 import { Icon } from '../components/Icon'
@@ -15,7 +16,8 @@ import { playContext, shuffleContext } from './playerBridge'
  * AlbumDetail 页（T4.4）——专辑详情（§3.7：Hero 渐变 + 封面 200 + 标题/艺术家/年份·曲目数 +
  * 播放/随机播放按钮；曲目表按 disc→trackNumber 排序，复用 TrackList）。
  *
- * Hero 渐变（.hero--album in styles/browse.css）：**全项目唯一允许的渐变**（§3.7 / T4.4 计划）。
+ * Hero 渐变（.hero--album in styles/browse.css）：全项目**第一处获准渐变**（§3.7 / T4.4；
+ * 第二处为 Liked 页 .hero--liked，见 T6.1 §4.6）。
  * 颜色硬编码为设计稿字面值 #2a2832 → var(--bg-base)（设计稿 mockup.css:1069，不在 tokens 里，留痕）。
  *
  * 随机播放（T4.4 计划）：将曲目数组洗牌后 loadContext——T5.6 经 playerBridge.shuffleContext 接通
@@ -28,6 +30,8 @@ export function AlbumDetail(): ReactElement {
   const albumId = Number(id)
   // T5.7 缺口②闭合：曲目表 C1 accent 接线——当前播放曲目 id 下传 TrackList（详见 Songs.tsx 留痕）。
   const playingTrackId = usePlayingTrackId()
+  // T6.1：收藏切片接线（详见 Songs.tsx 留痕）——详情页曲目行 ♡/右键收藏同样以切片为准。
+  const favorites = useFavorites()
   const { data, loading, error } = useBrowseData(
     () => api.library.getAlbum(albumId),
     [albumId]
@@ -43,6 +47,10 @@ export function AlbumDetail(): ReactElement {
   }
   const handleUnplayableActivate = (): void => {
     useToastStore.getState().showToast(t('player.unsupportedFormat'))
+  }
+  // T6.1：行 ♡/右键收藏 → 切片 toggle（详见 Songs.tsx 留痕）。
+  const handleToggleFavorite = (track: TrackRow, next: boolean): void => {
+    void useFavoritesStore.getState().toggle(track.id, next)
   }
 
   if (error) {
@@ -138,6 +146,8 @@ export function AlbumDetail(): ReactElement {
         onPlayNext={handlePlayNext}
         onEnqueue={handleEnqueue}
         onUnplayableActivate={handleUnplayableActivate}
+        favoriteIds={favorites.loaded ? favorites.favoriteIds : undefined}
+        onToggleFavorite={handleToggleFavorite}
       />
     </div>
   )

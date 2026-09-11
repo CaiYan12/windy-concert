@@ -1,0 +1,57 @@
+/* T6.1 Liked 页（「收藏」自动歌单）——对照 mockups/Liked.html + mockup.css:1072-1075 / :1186-1204。
+ *
+ * 承载以下语义关键类（登记于 tests/unit/renderer/css-contract.test.ts）：
+ *   · .hero--liked —— 【全项目第二处获准渐变】。第一处为 AlbumDetail 的 .hero--album（browse.css，
+ *     design-plan §4.3）；§4.6 明文批准 Liked Hero 使用主色绿的低透明度渐变（Spotify 紫色 Hero
+ *     的同构不同色）。色值 = --accent(#1ed760) 12% 透明度向 --bg-base 过渡，与 mockup.css:1074
+ *     字面一致（rgba(30,215,96,.12)，不在 tokens 里，硬编码留痕，同 .hero--album 的 #2a2832 先例）。
+ *   · .sort-control / .sort-control select —— 排序下拉盒（arrow-up-down + select）。
+ *   · .liked-page —— 本页作用域（section-heading 作为 flex 列首项不收缩；空态图标着色）。
+ *
+ * 加载顺序：App.tsx 在 browse.css 之后引入本文件——.hero--liked 需覆盖 browse.css 的 .hero
+ * min-height:280px（同特异性 0-1-0，靠源码顺序取胜）。
+ */
+
+/* ---------- Liked Hero（mockup.css:1072-1075） ---------- */
+.hero--liked {
+  min-height: 220px;
+  background: linear-gradient(110deg, rgba(30, 215, 96, 0.12) 0%, var(--bg-base) 72%);
+}
+
+/* 心形封面盒（替代真实的专辑封面——Liked 为自动歌单，无单一封面；设计稿为色块 + heart）。 */
+.liked-hero-cover {
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+}
+
+/* ---------- 排序下拉（mockup.css:1186-1204） ---------- */
+.sort-control {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+}
+
+.sort-control select {
+  min-width: 92px;
+  border: 0;
+  outline: 0;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- 本页作用域 ---------- */
+/* section-heading 作为 .browse-page（flex 列）首项不收缩，避免被 TrackList 挤扁。 */
+.liked-page .section-heading {
+  flex: 0 0 auto;
+}
+
+/* 空态（零收藏）：心形图标弱化为三级色，与 browse-state 文案对齐。 */
+.liked-empty .liked-empty-icon {
+  opacity: 0.38;
+}

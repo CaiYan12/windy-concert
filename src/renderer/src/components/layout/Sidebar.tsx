@@ -6,7 +6,7 @@ import { ensureStatsLoaded, formatCount, useStats } from '../../stores/statsStor
 import { Icon } from '../Icon'
 
 /**
- * 侧栏七项（顺序 = design-plan §4.1 侧栏结构：歌曲/专辑/艺术家/歌单/喜欢的音乐/最近播放/设置）。
+ * 侧栏七项（顺序 = design-plan §4.1 侧栏结构：歌曲/专辑/艺术家/歌单/收藏/最近播放/设置）。
  * 不再单独维护：由 routes.ts 的 ROUTE_DEFS 带 nav 的条目派生（唯一源），labelKey 即该路由的 titleKey。
  * 图标映射对照 docs/design/icons.md 与 mockup.css：music-2 / disc-3 / mic-2 / library / heart / history / settings。
  * （T4.1 评审 I1：此前 NAV_ITEMS 与 ROUTE_DEFS 二处维护、7 组 labelKey/titleKey 完全重复，无测试守护。）

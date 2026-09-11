@@ -7,7 +7,8 @@
  *   · playerStore 为应用单例（usePlayerStore）：测试用「单例 + 复位」隔离——
  *     模块顶层捕获 INITIAL_STATE，beforeEach 以 replace 形态整体复位，需要断言动作调用时再
  *     把特定动作替换为 vi.fn（见 playerStore.test.ts 工厂 vs 单例的取舍）。
- *   · favorites:set 走 window.api.favorites.set —— 测试中把 window.api.favorites 替换为 { set: vi.fn() }。
+ *   · 收藏（T6.1）：PlayerBar 改读 favoritesStore 共享切片——测试经 useFavoritesStore.setState 播种
+ *     （loaded + favoriteIds），并把 window.api.favorites.set 替换为 vi.fn 断言上报。
  */
 import { act } from 'react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
@@ -15,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TrackRow } from '../../../../shared/types'
 import { installSentinelI18n, mountPage } from '../../pages/browseFixtures'
 import { usePlayerStore } from '../../stores/playerStore'
+import { DEFAULT_FAVORITE_SORT, useFavoritesStore } from '../../stores/favoritesStore'
 import { PlayerBar } from './PlayerBar'
 
 // 单例初始快照（replace 复位基线；含原始动作闭包，复位后恢复真实行为）。
@@ -110,11 +112,20 @@ function mockRect(el: HTMLElement, width: number): void {
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   installSentinelI18n()
-  // window.api 复位为 browseFixtures 桩；再为 favorites 提供可断言的 set。
+  // window.api 复位为 browseFixtures 桩；再为 favorites 提供可断言的 set/list。
   const w = globalThis.window as unknown as { api: Record<string, unknown> }
-  w.api.favorites = { set: vi.fn() }
+  w.api.favorites = { set: vi.fn(), list: async (): Promise<TrackRow[]> => [] }
   // 整体复位单例到初始（含原始动作）。
   usePlayerStore.setState(INITIAL_STATE, true)
+  // 复位收藏切片：默认未加载（消费方回退 track.favorite），收藏用例自行播种 loaded。
+  useFavoritesStore.setState({
+    favoriteIds: new Set<string>(),
+    favorites: [],
+    sortBy: DEFAULT_FAVORITE_SORT,
+    loading: false,
+    error: null,
+    loaded: false
+  })
 })
 
 afterEach(() => {
@@ -203,33 +214,71 @@ describe('有曲目：传输控件可用 + 图标变体', () => {
   })
 })
 
-describe('收藏按钮', () => {
+describe('收藏按钮（T6.1 改走共享切片）', () => {
   beforeEach(() => {
     setPlayer({ currentTrack: makeTrack({ favorite: false }), playing: true, duration: 200, volume: 0.8, muted: false, playMode: { shuffle: false, repeat: 'off' } })
   })
 
-  it('点击收藏：调用 favorites:set(trackId,true) 并乐观更新 currentTrack.favorite + 图标变 heart--accent', () => {
+  it('切片已加载未收藏：点击 → favorites.set(t1,true) + 切片加入 + 图标 heart--accent', () => {
+    // 播种切片（等价于 App 启动 ensureFavoritesLoaded 完成、该曲未收藏）。
+    act(() => {
+      useFavoritesStore.setState({ loaded: true, favoriteIds: new Set<string>() })
+    })
     const { container, unmount } = mount()
     const fav = container.querySelector<HTMLButtonElement>('button[aria-label="«track.favorite»"]')!
     expect(fav.getAttribute('aria-pressed')).toBe('false')
     act(() => { fav.click() })
     const w = globalThis.window as unknown as { api: { favorites: { set: ReturnType<typeof vi.fn> } } }
     expect(w.api.favorites.set).toHaveBeenCalledWith('t1', true)
-    expect(usePlayerStore.getState().currentTrack?.favorite).toBe(true)
+    // 单一事实源：切片收藏集合即时反映（不再改 currentTrack.favorite）。
+    expect(useFavoritesStore.getState().isFavorite('t1')).toBe(true)
     const after = container.querySelector<HTMLButtonElement>('button[aria-label="«track.unfavorite»"]')!
     expect(after.getAttribute('aria-pressed')).toBe('true')
     expect(after.querySelector('img')!.getAttribute('src')).toContain('heart--accent')
     unmount()
   })
 
-  it('已收藏再点击：favorites:set(trackId,false) + 乐观更新为 false', () => {
-    setPlayer({ currentTrack: makeTrack({ favorite: true }) })
+  it('切片已加载且已收藏：点击 → favorites.set(t1,false) + 切片移除 + 图标回 heart', () => {
+    act(() => {
+      useFavoritesStore.setState({ loaded: true, favoriteIds: new Set(['t1']) })
+    })
     const { container, unmount } = mount()
     const fav = container.querySelector<HTMLButtonElement>('button[aria-label="«track.unfavorite»"]')!
     act(() => { fav.click() })
     const w = globalThis.window as unknown as { api: { favorites: { set: ReturnType<typeof vi.fn> } } }
     expect(w.api.favorites.set).toHaveBeenCalledWith('t1', false)
-    expect(usePlayerStore.getState().currentTrack?.favorite).toBe(false)
+    expect(useFavoritesStore.getState().isFavorite('t1')).toBe(false)
+    const after = container.querySelector<HTMLButtonElement>('button[aria-label="«track.favorite»"]')!
+    expect(after.getAttribute('aria-pressed')).toBe('false')
+    unmount()
+  })
+
+  it('切片未加载：回退 currentTrack.favorite（已收藏 → ♥）', () => {
+    setPlayer({ currentTrack: makeTrack({ favorite: true }) })
+    // 未播种 loaded：favoriteIds 空但不应被当成「未收藏」。
+    const { container, unmount } = mount()
+    const fav = container.querySelector<HTMLButtonElement>('button[aria-label="«track.unfavorite»"]')!
+    expect(fav.getAttribute('aria-pressed')).toBe('true')
+    unmount()
+  })
+
+  it('写库失败 → 切片乐观更新后回滚（♥ 还原）', async () => {
+    act(() => {
+      useFavoritesStore.setState({ loaded: true, favoriteIds: new Set<string>() })
+    })
+    const w = globalThis.window as unknown as { api: { favorites: { set: ReturnType<typeof vi.fn> } } }
+    w.api.favorites.set = vi.fn(() => Promise.reject(new Error('write failed')))
+    const { container, unmount } = mount()
+    const fav = container.querySelector<HTMLButtonElement>('button[aria-label="«track.favorite»"]')!
+    await act(async () => {
+      fav.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    // 回滚：切片仍为未收藏，按钮 ♡ 未被点亮。
+    expect(useFavoritesStore.getState().isFavorite('t1')).toBe(false)
+    const after = container.querySelector<HTMLButtonElement>('button[aria-label="«track.favorite»"]')!
+    expect(after.getAttribute('aria-pressed')).toBe('false')
     unmount()
   })
 })

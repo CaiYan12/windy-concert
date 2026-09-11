@@ -8,7 +8,7 @@
 | `disc-3` | 专辑导航、专辑空态 | 16 / 24 | `--text-secondary` / `--text-tertiary` |
 | `mic-2` | 艺术家导航、头像占位、艺术家空态 | 16 / 24 | `--text-secondary` / `--text-tertiary` |
 | `library` | 歌单导航、歌单空态、搜索预览 | 16 / 24 | `--text-secondary` / `--text-tertiary` |
-| `heart` | 收藏按钮、喜欢的音乐导航、Liked Hero | 16 / 24 | `--text-secondary` 未收藏；`--accent` 已收藏 |
+| `heart` | 收藏按钮、收藏导航、Liked Hero | 16 / 24 | `--text-secondary` 未收藏；`--accent` 已收藏 |
 | `history` | 最近播放导航、Recent 空态 | 16 / 24 | `--text-secondary` / `--text-tertiary` |
 | `settings` | 设置导航 | 16 | `--text-secondary` |
 | `search` | 顶栏搜索框、无结果态 | 16 / 24 | `--text-secondary` / `--text-tertiary` |

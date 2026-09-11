@@ -263,12 +263,14 @@
   background: var(--bg-base);
 }
 
-/* 【全项目唯一允许的渐变】硬编码设计稿字面值 #2a2832（不在 tokens 里，留痕）。§3.7 / T4.4 计划。 */
+/* 【第一处获准渐变；第二处 = .hero--liked（liked.css，T6.1 §4.6）】硬编码设计稿字面值 #2a2832
+ * （不在 tokens 里，留痕）。§3.7 / T4.4 计划。 */
 .hero--album {
   background: linear-gradient(110deg, #2a2832 0%, var(--bg-base) 74%);
 }
 
-/* 艺术家 Hero 不叠渐变（唯一渐变仅留给专辑），沿用 .hero 的 --bg-base；占位头像由 .artist-hero-avatar 提供。 */
+/* 艺术家 Hero 不叠渐变（获准渐变仅 .hero--album 与 .hero--liked 两处），沿用 .hero 的
+ * --bg-base；占位头像由 .artist-hero-avatar 提供。 */
 .hero--artist {
   background: var(--bg-base);
 }

@@ -7,6 +7,7 @@ import { ArtistDetail } from './ArtistDetail'
 import { Artists } from './Artists'
 import { AlbumDetail } from './AlbumDetail'
 import { SearchResults } from './SearchResults'
+import { Liked } from './Liked'
 
 /**
  * PagePlaceholder —— 路由 → 页面分发器（T4.4 起逐步落地真实页面）。
@@ -19,8 +20,8 @@ import { SearchResults } from './SearchResults'
  *
  * router.tsx / routes.ts 属 T4.1 冻结文件（不改），故页面迁移只能在此按 pathname 分流
  * （探索结论：ROUTE_DEFS 已含 /albums/:id、/artists/:id，router 已将其注册为 PagePlaceholder，
- * 故带参路由无需改动 router.tsx）。尚未落地的路由（playlists/liked/recent/settings/search）
- * 仍走纯占位，待各自任务替换。
+ * 故带参路由无需改动 router.tsx）。尚未落地的路由（playlists/recent/settings）仍走纯占位，
+ * 待各自任务替换（liked 已于 T6.1 落地，search 已于 T4.5 落地）。
  */
 export function PagePlaceholder(): ReactElement {
   const { t } = useI18n()
@@ -34,6 +35,8 @@ export function PagePlaceholder(): ReactElement {
   if (pathname.startsWith('/artists/')) return <ArtistDetail />
   // T4.5：/search 落地真实页面（routes.ts / router.tsx 冻结，仍走本分发器模式）。
   if (pathname === '/search') return <SearchResults />
+  // T6.1：/liked 落地真实页面（routes.ts / router.tsx 冻结，仍走本分发器模式）。
+  if (pathname === '/liked') return <Liked />
 
   // ---- 尚未落地的路由：纯占位（仅服务未实现页面，避免死链） ----
   return (
