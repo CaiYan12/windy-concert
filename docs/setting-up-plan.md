@@ -879,13 +879,14 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
 
 **具体技术实现**
 
-- [ ] **T5.1 PlayQueue 落地**：§3.5b 代码原样入 `player/queue.ts`（纯类无依赖）。
-- [ ] **T5.2 queue 单测**（`tests/unit/player/queue.test.ts`，≥10 用例，F5 验收的自动化形态）：
+- [x] **T5.1 PlayQueue 落地**：§3.5b 代码原样入 `player/queue.ts`（纯类无依赖）。
+- [x] **T5.2 queue 单测**（`tests/unit/player/queue.test.ts`，≥10 用例，F5 验收的自动化形态）：
   - F5-2：loadContext(10 首, startIndex=2) → order=10 首、current=第 3 首；
   - F5-5：shuffle 开启后 next() 走满一轮，序列无重复且为原集合；关闭后 order 恢复 original；
   - F5-6 六组合：off/off、off/all、off/one、on/off、on/all、on/one——逐组合断言 next 行为（含 all+on 一轮后重洗、one 下 next 不前进）；
   - F5-3：playNext 插队后播完插队曲回到原顺序（断言后续序列）；
   - 队首 previous：重启当前曲。
+  > 执行备注(2026-09-11)：**T5.1 逐字保真实证**——`sed -n '379,463p'` 提取计划代码块与 `src/renderer/src/player/queue.ts` SHA1 相同（`a4cd45ea…`，评审独立复验 diff 零差异），零格式差异、语义 0 改动。**T5.2 18+1 用例**（`tests/unit/player/queue.test.ts`，node project）：F5-2/F5-5（集合性质断言，随机性无关）/F5-6 六组合逐组合/F5-3 插队回原序完整序列/enqueue 尾插/队首 previous 重启/空队列/越界 startIndex 原样语义×2（注释标注「计划代码原样」现状锚）/upNext 副本/深拷贝锚定（评审 M1 缺口补锚：外部变异入参不污染队列，变异复验 1 failed→还原与计划代码逐字节一致）。on/all 重洗断言显式注释 Fisher–Yates 两次碰撞可能，稳健性核实通过。两处计划代码原样语义上报备案（未改代码）：①顺序模式 loadContext 越界 startIndex 原样存 index（current null、next 视为队尾）；②previous() 在 index=0 且 repeat='all' 时走绕回分支（与队首重启语义不同分支序）。评审（agent-60efcf5c）APPROVED。**379 tests / typecheck 0 / e2e 11 passed**。
 - [ ] **T5.3 AudioEngine + playbackService + playerStore**：AudioEngine 挂 `<audio>`，`crossOrigin` 不设、`preload='auto'`；playbackService 按 §3.5c 时序实现 loadTrack/recordPlay/updateOutcome/seek/setVolume（音量持久化 debounce 500ms 调 settings:set）/toggleMute；playerStore 暴露 F4-2 状态集（currentTrack/duration/position(250ms 节流)/playing/volume/muted/playMode），position 更新用 `timeupdate` 事件节流，避免重渲染风暴。
 - [ ] **T5.4 播放栏**（F4-3 全要素，视觉对照 components.html PlayerBar 区）：封面+标题+艺术家（点击标题跳专辑详情）、收藏按钮、上一首/播放暂停/下一首（播放暂停=32px 白圆反色按钮，`pause--on-accent.svg`/`play--on-accent.svg` 变体）、Shuffle 开关、Repeat 三态循环点击、进度条可拖动 seek（4px 槽 hover 增至 6px，已播填充用 `--text-secondary` 不用主色）、音量条+静音、队列按钮；播放中行均衡器动画（唯一持续动画）。全部控件 disabled 态可用（空队列时）。
 - [ ] **T5.5 队列面板**：320px 右侧滑入（250ms transform，对照 components.html QueuePanel 区）；「正在播放 / 下一首播放（插队，`corner-down-right` 标识）/ 下次播放」三段结构同稿；0.1 只读（拖拽重排/删除属 F5-4 禁区，不渲染任何编辑 affordance）。
