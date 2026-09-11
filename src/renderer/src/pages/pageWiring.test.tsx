@@ -132,6 +132,8 @@ beforeEach(() => {
   listSongsResult = []
   statsResult = null
   useLibraryStore.setState({ songs: [], loading: false, error: null, params: { ...DEFAULT_LIBRARY_PARAMS } })
+  // 隔离播放态：每个用例默认无当前曲目，避免跨例串扰（T5.7 缺口②高亮用例显式 set）。
+  usePlayerStore.setState({ currentTrack: null })
 })
 
 afterEach(() => {
@@ -175,6 +177,63 @@ describe('Songs 页接线（T5.6）', () => {
     expect(spies.loadContext).not.toHaveBeenCalled()
     expect(spies.showToast).toHaveBeenCalledTimes(1)
     expect(spies.showToast).toHaveBeenCalledWith('«player.unsupportedFormat»')
+    page.unmount()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T5.7 缺口②闭合：曲目表 C1 accent 接线——当前播放曲目行应渲染 .track-row.is-playing
+// ---------------------------------------------------------------------------
+describe('曲目表播放态高亮（T5.7 缺口②）', () => {
+  it('Songs 页：currentTrack 命中的行渲染 .track-row.is-playing', async () => {
+    // 模拟正在播放 tracks[1]（id='b'）。
+    usePlayerStore.setState({ currentTrack: makeTrack('b') })
+    const tracks = [makeTrack('a'), makeTrack('b'), makeTrack('c')]
+    listSongsResult = tracks
+    const page = mountPage(
+      <MemoryRouter>
+        <Songs />
+      </MemoryRouter>
+    )
+    await flushBrowse()
+    const playing = page.container.querySelectorAll('.track-row.is-playing')
+    expect(playing).toHaveLength(1)
+    expect(playing[0].textContent).toContain('曲 b') // 高亮命中正确行
+    page.unmount()
+  })
+
+  it('Songs 页：currentTrack 不在本页（跨上下文 id 不匹配）则不亮', async () => {
+    usePlayerStore.setState({ currentTrack: makeTrack('z') }) // 不属于本页视图
+    const tracks = [makeTrack('a'), makeTrack('b')]
+    listSongsResult = tracks
+    const page = mountPage(
+      <MemoryRouter>
+        <Songs />
+      </MemoryRouter>
+    )
+    await flushBrowse()
+    expect(page.container.querySelectorAll('.track-row.is-playing')).toHaveLength(0)
+    page.unmount()
+  })
+
+  it('AlbumDetail 页：currentTrack 命中专辑曲目行渲染 .track-row.is-playing', async () => {
+    browseApiData.album = {
+      id: 7,
+      title: 'Al',
+      artistName: 'A',
+      year: 2000,
+      coverId: null,
+      trackCount: 2,
+      genre: 'Pop',
+      discCount: 1
+    }
+    browseApiData.tracks = [makeTrack('a'), makeTrack('b')]
+    usePlayerStore.setState({ currentTrack: makeTrack('a') }) // 命中首曲
+    const page = mountPage(renderAlbum())
+    await flushBrowse()
+    const playing = page.container.querySelectorAll('.track-row.is-playing')
+    expect(playing).toHaveLength(1)
+    expect(playing[0].textContent).toContain('曲 a')
     page.unmount()
   })
 })

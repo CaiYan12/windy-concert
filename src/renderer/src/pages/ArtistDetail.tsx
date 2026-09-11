@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { type ReactElement } from 'react'
 import type { TrackRow } from '../../../shared/types'
 import { useI18n } from '../i18n'
-import { usePlayerStore } from '../stores/playerStore'
+import { usePlayerStore, usePlayingTrackId } from '../stores/playerStore'
 import { useToastStore } from '../stores/toastStore'
 import { api } from '../ipc/client'
 import { Cover } from '../components/Cover'
@@ -23,6 +23,8 @@ export function ArtistDetail(): ReactElement {
   const { t } = useI18n()
   const { id } = useParams<{ id: string }>()
   const artistId = Number(id)
+  // T5.7 缺口②闭合：曲目表 C1 accent 接线——当前播放曲目 id 下传 TrackList（详见 Songs.tsx 留痕）。
+  const playingTrackId = usePlayingTrackId()
   const { data, loading, error } = useBrowseData(
     () => api.library.getArtist(artistId),
     [artistId]
@@ -157,6 +159,7 @@ export function ArtistDetail(): ReactElement {
         // 曲目按专辑归组后 disc→track 固定序展示，不承担排序语义；此前传的 sortBy/order
         // 仅驱动表头 aria-sort 失真（用户无法改序），随 sortable 开关一并移除。
         sortable={false}
+        playingTrackId={playingTrackId}
         className="detail-tracklist"
         onActivate={(_track, index) => playContext(tracks, index)}
         onPlayNext={handlePlayNext}

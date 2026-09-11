@@ -2,7 +2,7 @@ import { useEffect, type ReactElement } from 'react'
 import type { SortKey, TrackRow } from '../../../shared/types'
 import { useI18n } from '../i18n'
 import { useLibrary } from '../stores/libraryStore'
-import { usePlayerStore } from '../stores/playerStore'
+import { usePlayerStore, usePlayingTrackId } from '../stores/playerStore'
 import { useToastStore } from '../stores/toastStore'
 import { ensureStatsLoaded, formatCount, useStats } from '../stores/statsStore'
 import { playContext } from './playerBridge'
@@ -48,6 +48,9 @@ export function Songs(): ReactElement {
   const { t } = useI18n()
   const library = useLibrary()
   const { stats } = useStats()
+  // T5.7 缺口②闭合：曲目表 C1 accent 接线——把当前播放曲目 id 下传给 TrackList，
+  // 使对应行渲染 .track-row.is-playing（跨上下文 id 不匹配则不亮，正确行为）。
+  const playingTrackId = usePlayingTrackId()
 
   // T5.6：双击整队（上下文 = 当前页视图 songs，startIndex = 当页行号）；右键菜单接 playNext/enqueue；
   // 不可播双击 → 轻量 toast「M0.1 暂不支持此格式播放」。store 动作经 getState 调，避免无谓重渲染。
@@ -110,6 +113,7 @@ export function Songs(): ReactElement {
         error={library.error}
         sortBy={library.params.sortBy}
         order={library.params.order}
+        playingTrackId={playingTrackId}
         onSortChange={library.setSort}
         onActivate={handleActivate}
         onPlayNext={handlePlayNext}

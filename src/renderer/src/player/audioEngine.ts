@@ -63,6 +63,19 @@ export interface CreateAudioEngineDeps {
 export function createAudioEngine(deps: CreateAudioEngineDeps = {}): AudioEngine {
   // 缺省注入：惰性到工厂调用时刻才创建（不在模块顶层——留痕见文件头）。
   const el: AudioElementLike = deps.audio ?? new Audio();
+
+  // e2e 可观测性：挂 DOM 以支撑播放态断言。
+  // 仅「自己 new Audio()」的缺省路径挂 DOM；注入替身路径（单测/后续可注入）不动——替身无真实
+  // DOM 语义，挂上反而污染测试 DOM。detached audio 虽可发声但 document.querySelector('audio')
+  // 恒 null，导致 e2e 无法经 DOM 断言播放态，故此处补挂。audio 无 controls 不可见、零视觉影响。
+  // 幂等守卫：已 append（parentElement 存在）则不重复，防 HMR / 单例重复创建导致的重复挂 DOM。
+  if (deps.audio === undefined && typeof document !== 'undefined') {
+    const realAudio = el as unknown as HTMLAudioElement
+    if (!realAudio.parentElement) {
+      document.body.appendChild(realAudio)
+    }
+  }
+
   el.preload = 'auto'; // 计划 T5.3 原文；crossOrigin 不设（同上留痕）
 
   return {

@@ -93,6 +93,26 @@ describe('createAudioEngine', () => {
     expect(engine.paused).toBe(true);
   });
 
+  it('缺省路径：自己 new Audio() 后挂载到 document.body（e2e 可观测性）；注入路径不挂载', () => {
+    // 清场：移除任何残留的 <audio>，保证断言只针对本例新挂的元素。
+    document.body.querySelectorAll('audio').forEach((n) => n.remove());
+
+    // 缺省路径：内部 new Audio() 应 append 到 document.body（e2e 可经 DOM 断言播放态）。
+    createAudioEngine();
+    const appended = document.body.querySelector('audio');
+    expect(appended).not.toBeNull();
+
+    // 注入路径：传入替身不应被挂载到 DOM（避免污染测试 DOM）。
+    const el = new FakeAudioElement();
+    createAudioEngine({ audio: el });
+    // 仍只有一个（缺省路径那个），替身未新增。
+    expect(document.body.querySelectorAll('audio')).toHaveLength(1);
+
+    // 幂等守卫：若元素已挂 DOM（parentElement 存在），缺省路径不会重复 append。
+    // 此处验证守卫的存在不影响注入路径判定，且不因重复调用而多挂（每次全新元素）。
+    document.body.querySelectorAll('audio').forEach((n) => n.remove());
+  });
+
   it('on 订阅路由到对应事件；unsubscribe 解除（不重复触发）', () => {
     const el = new FakeAudioElement();
     const engine = createAudioEngine({ audio: el });

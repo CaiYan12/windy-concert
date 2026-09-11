@@ -397,3 +397,16 @@ export function usePlayer(): PlayerState {
     usePlayerStore.getState
   );
 }
+
+/**
+ * T5.7 缺口②：当前播放曲目 id 选择器（曲目表 C1 accent 接线用）。
+ * 经 useSyncExternalStore 订阅，但只返回原始值（string | undefined），故仅当 currentTrack.id
+ * 变化时才触发消费页（Songs / AlbumDetail / ArtistDetail）重渲染——不随 position 节流
+ * 刷新（每 250ms）重渲整张曲目表（对照 usePlayer() 返回整态、会随每个字段变更重渲）。
+ * 无当前曲目时返回 undefined（对齐 TrackListProps.playingTrackId 可选形态：缺省不渲染播放行）。
+ * getServerSnapshot 与 getSnapshot 一致（同 usePlayer 留痕：显式 getState() 保证 node 可测）。
+ */
+export function usePlayingTrackId(): string | undefined {
+  const selector = (): string | undefined => usePlayerStore.getState().currentTrack?.id ?? undefined
+  return useSyncExternalStore(usePlayerStore.subscribe, selector, selector);
+}

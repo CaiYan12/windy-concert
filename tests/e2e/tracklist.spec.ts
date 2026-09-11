@@ -115,6 +115,10 @@ test('TrackList × Cover 真实渲染：七行 / 缺失 / 不可播 / 排序 / �
     // ⑤.5 C1 播放行 accent 变体断言：已随 `?playing=` 后门移除（见步骤④留痕）。
     //    **覆盖空窗（T4.4~T5.6）**：真实播放态 is-playing 由 T5.6 playerStore 驱动，届时在本
     //    e2e 重新注入并断言 `.track-row.is-playing .is-playing-icon` 的 src 命中 music-2--accent。
+    //    【T5.7 填回落点指路】实测 AlbumDetail/Songs 均未向 TrackList 传入 playingTrackId，曲目表
+    //    维度 `.track-row.is-playing` 当前不出现（T5.6 接线缺口，非本任务可修）；C1 等价回收改在队列
+    //    面板「正在播放」行断言 music-2--accent 图标，见 tests/e2e/playback-queue.spec.ts（c1TrackRowProbe
+    //    软探针上报曲目表缺口 + 队列面板维度硬断言）。该文件另含 audio/src 不可经 DOM 断言的取证取舍。
 
     // ⑥ 缺失行：右侧 file-x-2 灰标 + 副标题「文件缺失」+ 行内播放禁用。
     //    双击拦截由单测锚定：src/renderer/src/components/TrackList.test.tsx 的
