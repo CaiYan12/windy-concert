@@ -10,6 +10,10 @@ import './styles/cover.css'
 import './styles/tracklist.css'
 // T4.4：浏览页（Songs/Albums/Artists/详情）布局样式，全局引入（与 cover/tracklist 同层生效）。
 import './styles/browse.css'
+// T4.5：搜索（SearchBox 下拉 + SearchResults 结果页 + 紧凑曲目表列格）。
+// 必须在 tracklist.css 之后加载：.track-table--compact .track-row 与 .track-table .track-row
+// 同特异性（0-2-0），靠后加载覆盖为 6 列格（见 search.css 文件头说明）。
+import './styles/search.css'
 
 function App(): React.JSX.Element {
   return <RouterProvider router={router} />

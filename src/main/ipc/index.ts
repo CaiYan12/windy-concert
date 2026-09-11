@@ -218,6 +218,9 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
   });
 
   // ---- 搜索（§3.5d：分组返回；路由收口在 trackRepo.search 内部）----
+  // T4.5：handler 计时日志。两条查询路径（≥3 字符 FTS / <3 字符 LIKE 回退）都要留点，
+  // path 由 q.trim().length 判定——与 trackRepo.search 内部路由（trackRepo.ts search()）
+  // 同一判据，两处口径一致；若 repo 侧路由规则变更需同步此处（留痕）。
   register(IPC.CHANNELS.LIBRARY_SEARCH, (_e, payload) => {
     const p = payload as IpcPayloads['library:search'];
     if (typeof p?.q !== 'string') throw new Error('library:search 需要字符串 q');
@@ -226,12 +229,23 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
       // 空串返回空分组（搜索框空态安全，不抛错，留痕）
       return { tracks: [], albums: [], artists: [], playlists: [] };
     }
-    return {
+    const startedAt = Date.now();
+    const result = {
       tracks: trackRepo.search(q), // ≥3 FTS / <3 LIKE 内部自路由
       albums: albumRepo.search(q),
       artists: artistRepo.search(q),
       playlists: playlistRepo.search(q),
     };
+    // 先例核对：main 侧 handler 日志此前仅 console.error（'[ipc] scan 失败'），
+    // 无 info 级先例；计时属诊断信息非错误，用 console.info + '[search]' 前缀（留痕）。
+    const path = q.trim().length >= 3 ? 'fts' : 'like';
+    console.info(
+      `[search] q="${q}" len=${q.trim().length} path=${path}` +
+        ` tracks=${result.tracks.length} albums=${result.albums.length}` +
+        ` artists=${result.artists.length} playlists=${result.playlists.length}` +
+        ` took=${Date.now() - startedAt}ms`
+    );
+    return result;
   });
 
   // ---- 收藏 ----

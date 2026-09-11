@@ -16,7 +16,7 @@
  */
 import { act, type ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import type { AlbumCard, ArtistCard, TrackRow } from '../../../shared/types'
+import type { AlbumCard, ArtistCard, SearchResult, TrackRow } from '../../../shared/types'
 import { useI18nStore } from '../i18n'
 
 export interface BrowseAlbumDetail {
@@ -46,8 +46,15 @@ export const browseApiData = {
   tracks: [] as TrackRow[],
   failList: false,
   failAlbum: false,
-  failArtist: false
+  failArtist: false,
+  // T4.5：library:search 桩数据（SearchBox 下拉 / SearchResults 页共用）。
+  searchResult: null as SearchResult | null,
+  failSearch: false,
+  /** search 通道被调用的 q 序列（断言「何时发起/发起几次」用，beforeEach 复位）。 */
+  searchCalls: [] as string[]
 }
+
+const EMPTY_SEARCH: SearchResult = { tracks: [], albums: [], artists: [], playlists: [] }
 
 function makeLibraryHandlers() {
   return {
@@ -73,7 +80,13 @@ function makeLibraryHandlers() {
             artist: browseApiData.artist ? { ...browseApiData.artist, id } : null,
             albums: browseApiData.albums,
             tracks: browseApiData.tracks
-          })
+          }),
+    // T4.5：搜索通道（与真实 handler 一致：返回四组分组结构）；q 序列留给断言。
+    search: (q: string): Promise<SearchResult> => {
+      browseApiData.searchCalls.push(q)
+      if (browseApiData.failSearch) return Promise.reject(new Error('search failed'))
+      return Promise.resolve(browseApiData.searchResult ?? EMPTY_SEARCH)
+    }
   }
 }
 
@@ -118,6 +131,9 @@ export function resetBrowseApiData(): void {
   browseApiData.failList = false
   browseApiData.failAlbum = false
   browseApiData.failArtist = false
+  browseApiData.searchResult = null
+  browseApiData.failSearch = false
+  browseApiData.searchCalls = []
 }
 
 /** 最小客户端挂载（无 @testing-library），返回容器与卸载函数。 */

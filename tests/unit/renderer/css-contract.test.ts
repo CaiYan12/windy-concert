@@ -37,7 +37,8 @@ const ROOT = path.resolve(import.meta.dirname, '../../..');
 const STYLE_FILES = [
   'src/renderer/src/styles/tracklist.css',
   'src/renderer/src/styles/cover.css',
-  'src/renderer/src/styles/browse.css'
+  'src/renderer/src/styles/browse.css',
+  'src/renderer/src/styles/search.css'
 ] as const;
 
 /** 去掉 CSS 注释（/* ... *\/），避免「注释里提到过这个选择器」造成假绿。 */
@@ -158,6 +159,52 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
     selector: '.hero--album',
     guards: '全项目唯一允许的渐变（§3.7 / T4.4）；缺则 Hero 平涂，违背视觉契约',
     strict: true
+  },
+  // --- T4.5 搜索（search.css）语义关键类 ---
+  {
+    selector: '.search-anchor',
+    guards: 'SearchBox 包裹层：position:relative 是 .search-preview 绝对定位的参照锚；缺则下拉漂出视口',
+    strict: true
+  },
+  {
+    selector: '.search-preview',
+    guards: 'SearchBox 下拉面板容器：绝对定位/z-index/底色；缺则预览以流式 div 落在顶栏下方，遮挡页面且无浮层',
+    strict: true
+  },
+  {
+    selector: '.search-preview-item',
+    guards: '下拉预览行：网格布局（copy + 尾随）与 hover 底色锚点；缺则行无布局、标题溢出不省略',
+    strict: true
+  },
+  {
+    selector: '.search-preview-empty',
+    guards: '下拉四组全空时的空态文案容器（无结果可见性）；缺则空态降级为无样式文本',
+    strict: true
+  },
+  {
+    selector: '.search-results-grid',
+    guards: '全结果页四段式网格容器（gap 28）；缺则四段贴叠不可辨读',
+    strict: true
+  },
+  {
+    selector: '.result-group',
+    guards: '结果页单分组段容器（min-width:0 防表格撑破网格）；缺则段溢出',
+    strict: true
+  },
+  {
+    selector: '.result-group-head',
+    guards: '分组头（标题+计数+查看全部）flex 布局；缺则三元素纵向堆叠',
+    strict: true
+  },
+  {
+    selector: '.track-table--compact',
+    guards: '搜索结果紧凑曲目表：min-width 覆盖（tracklist.css 的 900px 不适用于 6 列紧凑表）',
+    strict: true
+  },
+  {
+    // descendant 形态（覆盖 .track-table .track-row 的 10 列格），不可标 strict。
+    selector: '.track-table--compact .track-row',
+    guards: '紧凑表 6 列格覆盖（mockup.css:760）；缺则 6 格行套 10 列模板，列错位不可读'
   }
 ]
 

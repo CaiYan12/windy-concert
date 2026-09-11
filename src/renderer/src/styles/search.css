@@ -1,0 +1,172 @@
+/**
+ * 搜索样式（T4.5）——SearchBox 下拉分组预览 + /search 全结果页。
+ *
+ * 迁移来源（mockup.css 行号为 docs/design/mockups/mockup.css 原文行号）：
+ *   · 下拉预览区  .search-preview*            ← mockup.css:2064-2134（components.html 下拉区）
+ *   · 结果页分组  .search-results-grid / .result-group* ← mockup.css:1607-1636（SearchResults.html 四段式）
+ *   · 紧凑曲目表  .track-table--compact 列格   ← mockup.css:741-765（列数 6，覆盖 tracklist.css 的 §3.7 十列）
+ * 只取本任务用到的规则；着色一律 var(--*) tokens（tokens.css 已有 --z-dropdown/--shadow-float）。
+ *
+ * 加载顺序：本文件在 App.tsx 于 tracklist.css / browse.css 之后引入——
+ * `.track-table--compact .track-row` 与 tracklist.css 的 `.track-table .track-row` 同特异性
+ * （0-2-0），靠后加载覆盖列格（CompactTrackRow 的 6 格布局依赖此覆盖，css-contract 已登记）。
+ */
+
+/* ---------- SearchBox 包裹层：下拉的定位锚 ---------- */
+/* 偏离留痕（SearchBox.tsx 文件头详述）：设计稿 .search-preview 以壳层坐标 top:58px/left:24px
+   绝对定位；此处改为锚定自身包裹层，紧贴输入框正下方、与聚焦态（400px）等宽。 */
+.search-anchor {
+  position: relative;
+}
+
+/* ---------- 下拉分组预览（mockup.css:2064-2134） ---------- */
+.search-preview {
+  position: absolute;
+  z-index: var(--z-dropdown);
+  top: calc(100% + 6px);
+  left: 0;
+  width: 400px;
+  padding: 8px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-float);
+}
+
+.search-preview-group + .search-preview-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--divider);
+}
+
+.search-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 6px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.search-preview-head a {
+  color: var(--text-secondary);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.search-preview-head a:hover {
+  color: var(--text-primary);
+}
+
+.search-preview-item {
+  display: grid;
+  min-height: 34px;
+  /* 三列：28px 封面/头像前导列 + 弹性文案列 + 尾随列（mockup.css:2103）。 */
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 4px;
+}
+
+/* 下拉条目前导列（mockup.css:2103 的 28px 列）。封面显示盒尺寸由 CSS 承担——
+   Cover 组件的 size=64 只是 wc-cover 请求档（尺寸解耦协议见 Cover.tsx），不表示像素盒；
+   艺术家/歌单无封面数据，用中性图标占位盒（对照 components.html 下拉的 artist-avatar
+   圆形图标盒形态，禁造假数据）。 */
+.search-preview-item .cover--preview {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 0; /* 对照 mockup 下拉沿用 cover--table 的直角形态 */
+}
+
+.search-preview-item .preview-badge {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+}
+
+.search-preview-item:hover {
+  background: var(--row-hover);
+}
+
+.search-preview-item .preview-copy {
+  min-width: 0;
+}
+
+.search-preview-item .preview-title,
+.search-preview-item .preview-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-preview-item .preview-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.search-preview-item .preview-meta {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+/* 下拉整体无结果空态（mockup 无对应规则——设计稿「无结果组不渲染」覆盖了组级；
+   全空时仍需一行文案说明状态，此为最小补充，着色走 --text-tertiary） */
+.search-preview-empty {
+  padding: 10px 8px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- 全结果页四段式（mockup.css:1607-1636） ---------- */
+.search-results-grid {
+  display: grid;
+  gap: 28px;
+}
+
+.result-group {
+  min-width: 0;
+}
+
+.result-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.result-group-head h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.result-group-head .count {
+  color: var(--text-tertiary);
+}
+
+.result-group-head a {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.result-group-head a:hover {
+  color: var(--text-primary);
+}
+
+/* ---------- 紧凑曲目表列格（mockup.css:741-765） ---------- */
+/* 只覆盖列数与最小宽：行基础外观（padding/圆角/过渡）与单元格基类由 tracklist.css 提供。 */
+.track-table--compact {
+  min-width: 660px;
+}
+
+.track-table--compact .track-row {
+  grid-template-columns: 40px 40px minmax(180px, 2fr) 1fr 72px 32px;
+}

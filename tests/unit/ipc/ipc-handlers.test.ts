@@ -310,6 +310,37 @@ describe('registerIpcHandlers', () => {
     expect(res).toEqual({ tracks: [], albums: [], artists: [], playlists: [] });
   });
 
+  // T4.5：handler 计时日志——两条查询路径（≥3 FTS / <3 LIKE）都要留点，且 path 可区分。
+  // 日志经 console.info 输出（main 侧 handler 此前仅 console.error 先例，计时属诊断信息，留痕）。
+  it('library:search 计时日志：fts / like 两路径都打点且可区分（T4.5）', () => {
+    seedLibrary();
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+    try {
+      // ≥3 字符 → path=fts
+      ctx.call(IPC.CHANNELS.LIBRARY_SEARCH, { q: '七里香' });
+      expect(infoSpy).toHaveBeenCalledTimes(1);
+      const ftsLine = infoSpy.mock.calls[0][0] as string;
+      expect(ftsLine).toContain('[search]');
+      expect(ftsLine).toContain('q="七里香"');
+      expect(ftsLine).toContain('len=3');
+      expect(ftsLine).toContain('path=fts');
+      expect(ftsLine).toContain('tracks=1');
+      expect(ftsLine).toMatch(/took=\d+ms/);
+
+      // <3 字符 → path=like
+      ctx.call(IPC.CHANNELS.LIBRARY_SEARCH, { q: '夜' });
+      expect(infoSpy).toHaveBeenCalledTimes(2);
+      const likeLine = infoSpy.mock.calls[1][0] as string;
+      expect(likeLine).toContain('q="夜"');
+      expect(likeLine).toContain('len=1');
+      expect(likeLine).toContain('path=like');
+      expect(likeLine).toMatch(/took=\d+ms/);
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+
   it('favorites:set + favorites:list（白名单排序）往返', () => {
     seedLibrary();
     ctx.call(IPC.CHANNELS.FAVORITES_SET, { trackId: 't1', favorite: true });

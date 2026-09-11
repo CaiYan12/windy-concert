@@ -6,6 +6,7 @@ import { Albums } from './Albums'
 import { ArtistDetail } from './ArtistDetail'
 import { Artists } from './Artists'
 import { AlbumDetail } from './AlbumDetail'
+import { SearchResults } from './SearchResults'
 
 /**
  * PagePlaceholder —— 路由 → 页面分发器（T4.4 起逐步落地真实页面）。
@@ -31,6 +32,8 @@ export function PagePlaceholder(): ReactElement {
   if (pathname.startsWith('/albums/')) return <AlbumDetail />
   if (pathname === '/artists') return <Artists />
   if (pathname.startsWith('/artists/')) return <ArtistDetail />
+  // T4.5：/search 落地真实页面（routes.ts / router.tsx 冻结，仍走本分发器模式）。
+  if (pathname === '/search') return <SearchResults />
 
   // ---- 尚未落地的路由：纯占位（仅服务未实现页面，避免死链） ----
   return (
