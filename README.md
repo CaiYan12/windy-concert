@@ -40,15 +40,28 @@ npm run dist       # 生产构建 + electron-builder --win dir
 
 ## 暂未解决的问题
 
-**Phase 3（IPC / Preload / 设置 / i18n）——Phase 4 前置清单（第三方评审产出，按序）**
+**Phase 4（应用 Shell 与浏览/搜索 UI）——Phase 5 前置清单（第三方收尾评审产出，2026-09-11，按序）**
 
-- **addFolder 不自动扫描**：调用方须显式 `library:scan()`——Phase 4 设置页/Library UI 保存目录后必须补扫描调用并订阅 `onScanProgress` 刷新列表（计划 V1.7 已澄清验收文案）。
-- IPC 常量与 payload 类型下沉 `shared/`（现 preload 值引用 main/ipc/channels.ts，耦合 main 目录）。→ **Phase 4 前置**
-- `wireCoverPipeline` 虽已改返回新 deps，但仍为 mutate 外部 deps 的辅助形态——Phase 4/7 组装时确认调用顺序（wire 先于 createScanService）。→ **Phase 4 前置**
-- protocol handler 的 net.fetch 失败分支（403/404/400 body）无用例。→ **Phase 4 前置**（薄封装测试或 e2e 资产）
-- `settings:set` 的 renderer 高频调用（音量滑条）建议节流。→ **Phase 4**（接 UI 时）
-- 渲染层文案硬编码 grep 检查（§4.3-6 全部走 t(key)）。→ **Phase 4 验收项**（T4.6）
-- `scan:progress` 的 phase:'cover' 相位从不发射（T2.3 遗留）——Phase 4 渲染层勿等待该相位，封面就绪以 covers:ready 为准。→ 无需解决（留痕）
+Phase 4 已完成 T4.0~T4.10（含收尾评审新增的 T4.9 Songs 翻页 / T4.10 遗忘前置收口，均经评审闭环）。最终状态：345 unit tests / typecheck 0 / e2e 11 passed。
+
+- **Detail 页排序 dead affordance**：AlbumDetail/ArtistDetail 表头排序按钮可见可点但 `onSortChange` 未注入（点击无响应），且 `sortBy="title"` 的 aria-sort 指示与实际 disc→trackNumber 排序不符。→ **T5.6 接线时**禁用或接通，并修正 aria-sort 失真。
+- **songsCount 通道缺失**：listSongs 返回裸数组，Songs 页头不渲染总数、翻页末页判定只能靠行数<limit（整数倍边界落空页靠越界兜底退路缓解）。→ **建议时机：Phase 5**（补 `library:getStats` 或 listSongs 返回 `{items,total}`，一并根治总数显示与末页判定）。
+- **Albums/Artists 全量渲染无分页无虚拟化**（Albums.tsx 注释自认）：30k 曲库折算约 600~1000 专辑卡 × ~10 DOM 节点，Phase 8 性能验收首屏挂载大概率暴露。→ **建议时机：T8 前**立项（网格虚拟化或服务端分页）。
+- **covers:ready 渲染层零订阅**：扫描中途已挂载的 Albums/Artists/详情页在封面就绪后不补渲（Songs 页靠 done→refresh 兜底）。→ **建议时机：Phase 7** 扫描接线时一并处理。
+- **electron-builder.yml 仍为模板默认**：appId/productName/publish 指向 example.com、NSIS+mac+linux 三平台全配，与 V1.1 发布形态（build\ 绿色目录 + zip，NSIS 后置）有系统性差距（asarUnpack 已就位）。→ **建议时机：T8** 打包任务系统性重写 target/artifactName/打包脚本。
+- **Albums 卡有 card-play 而 ArtistDetail 专辑卡无**（同组件形态 affordance 不一致）。→ **建议时机：T5.6/后续**统一。
+- **shared/ipc.ts 对 main repo 四形态（AlbumDetail/ArtistDetail/PlaylistDetail/PlaylistRow）为 type-only 反向 import**（运行时零依赖，构建期擦除）。→ 预防性：后续可下沉 `shared/types.ts`（不紧迫）。
+- **Phase 8 性能验收提醒**：单测侧 Git Bash 偶发 vitest worker 全挂（`reading 'config'`，上游 vitest#10692 小写盘符 cwd），PowerShell 大写盘符 cwd 稳定——跨会话跑测试以此为准。
+
+**Phase 3（IPC / Preload / 设置 / i18n）——前置清单收口情况（2026-09-11 Phase 4 收尾更新）**
+
+- **addFolder 不自动扫描**：调用方须显式 `library:scan()`。→ ✅ **按计划承接 T7.3**（渲染层 grep `addFolder|library:scan` 零命中无越界；libraryStore 已订阅 done 自动刷新；收尾评审确认合理承接，非遗忘）。
+- IPC 常量与 payload 类型下沉 `shared/`。→ ✅ **已解决（T4.10，commit 89120b0）**：`src/shared/ipc.ts` 单一真源，preload 改指向 shared，channel 字符串 83 处逐一比对 0 差异；channels.ts 降级纯 re-export shim。
+- `wireCoverPipeline` 调用顺序（wire 先于 createScanService）。→ ✅ **已确认（T4.4 组装，收尾评审复核 `main/index.ts:129-130` 正确）**。
+- protocol handler net.fetch 失败分支（403/404/400 body）无用例。→ ✅ **已解决（T4.10）**：handler 提为可测函数（handleAudioRequest/handleCoverRequest 注入形态），新增 9 失败分支用例（越界 403/非法 400/取流失败 resolve 不炸进程）。
+- `settings:set` renderer 高频调用节流。→ **Phase 5**（T5.4 音量滑条接 UI 时，debounce 500ms 已在计划 §3.5c）。
+- 渲染层文案硬编码 grep 检查。→ ✅ **已解决（T4.6，2026-09-11）**：三层 grep（行级/属性级/JSX 文本节点）0 违例；t() 字面量 ⊆ zh-CN.json 守卫常驻。
+- `scan:progress` 的 phase:'cover' 相位从不发射——封面就绪以 covers:ready 为准。→ 部分承接：渲染层未等待该相位 ✓；但 covers:ready 渲染层补渲未做，见上方 Phase 5 前置清单（Phase 7 处理）。
 
 **Phase 2（扫描与 Metadata 管道）**
 

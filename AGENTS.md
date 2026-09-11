@@ -236,6 +236,7 @@ update the project config and agent rules here
 
 ## Project Status（每阶段收尾时更新）
 
+- 2026-09-11：**Phase 4（应用 Shell 与浏览/搜索 UI，T4.0~T4.10）已完成并通过第三方收尾评审（结论 PASS_WITH_NOTES）**。交付：Icon/tokens 设计资产接入、AppShell 五组件 + hash 路由、libraryStore、TrackList/Cover（三轮评审闭环）、五浏览页（封面通路改 albums.cover_id 回填，锚定测试有牙）、SearchBox/SearchResults（两阶段评审闭环，debounce/键盘可达/IME 守卫）、i18n 三层 grep 0 违例、E2E 全链路 + 11 路由矩阵 + F3-1 无死链；收尾评审新增 T4.9 Songs 翻页（用户裁定补 UI）与 T4.10 遗忘前置收口（IPC 下沉 shared + 协议失败分支 9 用例）均已闭环。**最终 345 unit tests / typecheck 0 / e2e 11 passed**。**Phase 5 前置清单已收录 README**（Detail 排序 dead affordance→T5.6、songsCount 通道→Phase 5、Albums/Artists 虚拟化→T8 前、covers:ready 补渲→Phase 7、electron-builder 重写→T8、card-play affordance 统一→T5.6）。下一步等用户指令进入 Phase 5（播放器核心与队列）。
 - 2026-09-10：Phase 3（IPC 契约、Preload 桥、设置与 i18n 运行时，T3.1~T3.6 + 前置项）已完成并通过第三方独立评审（结论 With fixes → 分页钳制/数组拒绝/getFolders 归一已修复，160 tests + 2 e2e 全绿）。**评审产出 Phase 4 前置清单已收录 README**（addFolder 后须显式 scan、IPC 常量下沉 shared、wireCoverPipeline 组装顺序、protocol 失败分支用例、文案硬编码检查）。Phase 3 代码与状态文档已提交入库。下一步等用户指令进入 Phase 4（应用 Shell 与浏览/搜索 UI）。
 - 2026-09-10：Phase 2（扫描与 Metadata 管道，T2.1~T2.7 + V1.3 升格项前置落地）已完成并通过第三方独立评审（结论 With fixes → I-1 封面来源优先级 embedded>folder 已强制修复，计划 V1.6 调和 §3.5e 与 F2-2 矛盾；30k 首扫 39.5s ≤5min）。
 - 2026-09-10：Phase 1（数据层：SQLite + 迁移 + 仓库 + FTS，T1.1~T1.6）已完成，验收全绿；Phase 0（工程脚手架与基线，T0.1~T0.5）已完成，§5 验收七条全绿；远端 github.com/CaiYan12/windy-concert（public），分支 main。
