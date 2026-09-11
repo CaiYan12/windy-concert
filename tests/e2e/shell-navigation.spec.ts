@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { watchConsoleIssues, watchRequests } from './helpers'
 
 /**
  * T4.1 壳层冒烟（最小版）——承载 T4.0 顺延的验收项：
@@ -93,4 +94,95 @@ test('skip-link 在非 Songs 页激活后不跳路由，焦点落到主内容（
   await expect(page.locator('.topbar .page-title')).toHaveText('专辑')
   await expect(page.locator('.sidebar .nav-link[aria-current="page"]')).toHaveText(/专辑/)
   await expect(page.locator('#main-content')).toBeFocused()
+})
+
+/**
+ * T4.8 逐路由导航矩阵：11 条路由（routes.ts ROUTE_DEFS）逐一直达，断言渲染无异常。
+ *
+ * 断言形态按页面落地状态分三档（计划 T4.8 原文「渲染无异常」的落地解释）：
+ *   · 真实页（songs/albums/artists）：页头真实标题 + 主内容区渲染（空库下是空态，也是合法渲染）；
+ *   · 真实详情页（albums/:id、artists/:id）：空库无实体，用不存在的 id 直达 → notFound 空态
+ *     （「未找到该专辑/艺术家」）——这本身是真实渲染分支，且证明带参路由不会死链/白屏；
+ *   · 占位页（playlists/liked/recent/settings 及 /search 空查询）：占位/引导文案出现。
+ * 全程控制台无 error 级日志、无未捕获异常（pageerror）。
+ * 零 http(s) 外联断言随导航全程收集（Local-first 硬约束，模式延续）。
+ */
+test('T4.8 逐路由矩阵：11 条路由直达渲染无异常，控制台无 error', async ({ app }) => {
+  const { page } = app
+  const issues = watchConsoleIssues(page)
+  const watcher = watchRequests(page)
+
+  // 先挂监听再 reload，完整覆盖启动期 + 逐路由导航期。
+  await page.reload()
+  await page.waitForSelector('.app-shell')
+
+  const ROUTE_MATRIX: Array<{ hash: string; title: string; marker: string }> = [
+    { hash: '#/songs', title: '歌曲', marker: '全部歌曲' },
+    { hash: '#/albums', title: '专辑', marker: '专辑' },
+    { hash: '#/albums/999999', title: '专辑详情', marker: '未找到该专辑' },
+    { hash: '#/artists', title: '艺术家', marker: '艺术家' },
+    { hash: '#/artists/999999', title: '艺术家详情', marker: '未找到该艺术家' },
+    { hash: '#/playlists', title: '歌单', marker: '页面内容将在后续任务中接入' },
+    { hash: '#/playlists/999999', title: '歌单详情', marker: '页面内容将在后续任务中接入' },
+    { hash: '#/liked', title: '收藏', marker: '页面内容将在后续任务中接入' },
+    { hash: '#/recent', title: '最近播放', marker: '页面内容将在后续任务中接入' },
+    { hash: '#/settings', title: '设置', marker: '页面内容将在后续任务中接入' },
+    { hash: '#/search?q=', title: '搜索结果', marker: '输入关键词开始搜索' }
+  ]
+
+  for (const route of ROUTE_MATRIX) {
+    await page.evaluate((hash) => {
+      window.location.hash = hash
+    }, route.hash)
+    // 顶栏标题来自路由 handle（react-router 唯一匹配器）——标题正确即路由命中。
+    await expect(page.locator('.topbar .page-title')).toHaveText(route.title)
+    // 主内容区目标文案出现（真实页页头 / notFound 空态 / 占位文案 / 搜索空查询引导）。
+    await expect(page.locator('#main-content')).toContainText(route.marker)
+    // hash 确实落位（未被 `*` 兜底重定向回 /songs——重定向即死链）。
+    expect(await page.evaluate(() => window.location.hash)).toBe(route.hash)
+  }
+
+  expect(issues.errors, `控制台出现 error 日志：${issues.errors.join(' | ')}`).toEqual([])
+  expect(issues.pageErrors, `存在未捕获异常：${issues.pageErrors.join(' | ')}`).toEqual([])
+
+  const external = watcher.externalUrls()
+  expect(external, `存在 http(s) 外联请求：${external.join(', ')}`).toEqual([])
+})
+
+/**
+ * T4.8 F3-1 无死链验收：侧栏全部入口（routes.ts 派生的 7 项）逐一点击，目标均真实渲染。
+ * 「无死链」的可观测定义：点击后 hash 落位、aria-current 迁移、顶栏标题同步、主内容非空，
+ * 且全程控制台无 error（白屏/异常往往伴随 console error 或 pageerror）。
+ */
+test('T4.8 F3-1 无死链：侧栏七入口逐一点击均可导航且目标渲染', async ({ app }) => {
+  const { page } = app
+  const issues = watchConsoleIssues(page)
+  await page.waitForSelector('.app-shell')
+
+  const SIDEBAR_ENTRIES: Array<{ label: string; hash: string }> = [
+    { label: '歌曲', hash: '#/songs' },
+    { label: '专辑', hash: '#/albums' },
+    { label: '艺术家', hash: '#/artists' },
+    { label: '歌单', hash: '#/playlists' },
+    { label: '收藏', hash: '#/liked' },
+    { label: '最近播放', hash: '#/recent' },
+    { label: '设置', hash: '#/settings' }
+  ]
+
+  for (const entry of SIDEBAR_ENTRIES) {
+    const link = page.locator('.sidebar .nav-link').filter({ hasText: entry.label })
+    await expect(link).toHaveCount(1)
+    await link.click()
+    await page.waitForFunction((hash) => window.location.hash === hash, entry.hash)
+    // aria-current 迁移到当前项（NavLink 活跃态）。
+    const current = page.locator('.sidebar .nav-link[aria-current="page"]')
+    await expect(current).toHaveCount(1)
+    await expect(current).toHaveText(new RegExp(entry.label))
+    // 顶栏标题同步 + 主内容非空（占位页有占位文案，真实页有页头/空态）。
+    await expect(page.locator('.topbar .page-title')).toHaveText(entry.label)
+    await expect(page.locator('#main-content')).not.toBeEmpty()
+  }
+
+  expect(issues.errors, `控制台出现 error 日志：${issues.errors.join(' | ')}`).toEqual([])
+  expect(issues.pageErrors, `存在未捕获异常：${issues.pageErrors.join(' | ')}`).toEqual([])
 })
