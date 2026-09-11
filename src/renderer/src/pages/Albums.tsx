@@ -58,7 +58,10 @@ export function Albums(): ReactElement {
                 className="card-play"
                 aria-label={t('albumDetail.play')}
                 onClick={(e) => {
-                  // T5.6 接通：应先取该专辑曲目再 playContext(tracks, 0)；playerStore 未建先挂占位。
+                  // T5.6 留痕：计划 T5.6 接线清单未列 Albums 卡片播放钮（仅 Songs/AlbumDetail/
+                  // ArtistDetail 三页 + 详情页按钮），保持占位不动。playerStore 已建（T5.3），
+                  // playContext 现为真实接线——空数组会触发空上下文停止，无假播放副作用；
+                  // 正式接通（先取专辑曲目再 playContext(tracks, 0)）留待后续任务立案。
                   e.preventDefault()
                   e.stopPropagation()
                   playContext([])

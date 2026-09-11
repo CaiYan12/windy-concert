@@ -39,7 +39,8 @@ const STYLE_FILES = [
   'src/renderer/src/styles/cover.css',
   'src/renderer/src/styles/browse.css',
   'src/renderer/src/styles/search.css',
-  'src/renderer/src/styles/shell.css'
+  'src/renderer/src/styles/shell.css',
+  'src/renderer/src/styles/toast.css'
 ] as const;
 
 /** 去掉 CSS 注释（/* ... *\/），避免「注释里提到过这个选择器」造成假绿。 */
@@ -310,6 +311,32 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
   {
     selector: '.queue-icon',
     guards: '行尾指示盒（默认三级色；playing 段 accent 由 is-playing 规则覆盖）',
+    strict: true
+  },
+  // --- T5.6 轻量 toast（toast.css）语义关键类 ---
+  {
+    selector: '.toast-stack',
+    guards: 'toast 浮层容器（fixed 定位 + z-index:var(--z-toast) + 播放栏上方 16px）；缺则提示漂出/被遮挡',
+    strict: true
+  },
+  {
+    selector: '.toast',
+    guards: 'toast 主体（底色/圆角/阴影/对齐）；裸规则存在',
+    strict: true
+  },
+  {
+    selector: '.toast.is-hidden',
+    guards: '无提示时隐藏节点（display:none），避免空 .toast 占位；裸规则存在',
+    strict: true
+  },
+  {
+    selector: '.toast-icon',
+    guards: 'toast 图标（--accent 着色）；裸规则存在',
+    strict: true
+  },
+  {
+    selector: '.toast-label',
+    guards: 'toast 文案（semibold）；裸规则存在',
     strict: true
   }
 ]

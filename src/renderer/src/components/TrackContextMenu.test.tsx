@@ -84,6 +84,11 @@ function mountMenu(props: Partial<Parameters<typeof TrackContextMenu>[0]> = {}):
         track={props.track ?? makeTrack()}
         playlists={props.playlists ?? PLAYLISTS}
         onClose={onClose}
+        onPlayNext={props.onPlayNext}
+        onEnqueue={props.onEnqueue}
+        onToggleFavorite={props.onToggleFavorite}
+        onAddToPlaylist={props.onAddToPlaylist}
+        onCreatePlaylist={props.onCreatePlaylist}
       />
     )
   })
@@ -98,6 +103,15 @@ function mountMenu(props: Partial<Parameters<typeof TrackContextMenu>[0]> = {}):
       container.remove()
     }
   }
+}
+
+/** 按哨兵 label 找到顶层菜单项按钮并派发 click（run(id) 走 onPlayNext / onEnqueue）。 */
+function clickItemByLabel(menu: HTMLElement, label: string): void {
+  const item = Array.from(menu.querySelectorAll<HTMLButtonElement>(':scope > .context-item')).find(
+    (el) => el.textContent?.includes(label)
+  )
+  if (!item) throw new Error(`未找到 label 含「${label}」的菜单项`)
+  act(() => item.dispatchEvent(new MouseEvent('click', { bubbles: true })))
 }
 
 function press(el: Element, key: string): void {
@@ -199,6 +213,35 @@ describe('I2 滚动关闭不误伤菜单内滚动', () => {
   it('Escape 仍然关闭（回归）', () => {
     const { menu, onClose, unmount } = mountMenu()
     press(menu, 'Escape')
+    expect(onClose).toHaveBeenCalledTimes(1)
+    unmount()
+  })
+})
+
+// T5.6：右键菜单「下一首播放 / 添加到队列」接 playerStore.playNext / enqueue 的接线锚点。
+describe('T5.6 菜单项 → playNext / enqueue 接线', () => {
+  it('「下一首播放」点击 → onPlayNext(track) 触发一次并关闭菜单', () => {
+    const track = makeTrack({ id: 't-x' })
+    const onPlayNext = vi.fn()
+    const onEnqueue = vi.fn()
+    const { menu, onClose, unmount } = mountMenu({ track, onPlayNext, onEnqueue })
+    clickItemByLabel(menu, '«menu.playNow»')
+    expect(onPlayNext).toHaveBeenCalledTimes(1)
+    expect(onPlayNext).toHaveBeenCalledWith(track)
+    expect(onEnqueue).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
+    unmount()
+  })
+
+  it('「添加到队列」点击 → onEnqueue(track) 触发一次并关闭菜单', () => {
+    const track = makeTrack({ id: 't-y' })
+    const onPlayNext = vi.fn()
+    const onEnqueue = vi.fn()
+    const { menu, onClose, unmount } = mountMenu({ track, onPlayNext, onEnqueue })
+    clickItemByLabel(menu, '«menu.addToQueue»')
+    expect(onEnqueue).toHaveBeenCalledTimes(1)
+    expect(onEnqueue).toHaveBeenCalledWith(track)
+    expect(onPlayNext).not.toHaveBeenCalled()
     expect(onClose).toHaveBeenCalledTimes(1)
     unmount()
   })

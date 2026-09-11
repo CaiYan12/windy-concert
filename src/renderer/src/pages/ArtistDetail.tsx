@@ -1,19 +1,22 @@
 import { Link, useParams } from 'react-router-dom'
 import { type ReactElement } from 'react'
+import type { TrackRow } from '../../../shared/types'
 import { useI18n } from '../i18n'
+import { usePlayerStore } from '../stores/playerStore'
+import { useToastStore } from '../stores/toastStore'
 import { api } from '../ipc/client'
 import { Cover } from '../components/Cover'
 import { Icon } from '../components/Icon'
 import { TrackList } from '../components/TrackList'
 import { useBrowseData } from './useBrowseData'
-import { playContext, shuffleContext, shuffleTracks } from './playerBridge'
+import { playContext, shuffleContext } from './playerBridge'
 
 /**
  * ArtistDetail 页（T4.4）——艺术家详情（§3.7 基础版：Hero + 专辑网格 + 全部曲目）。
  * 数据经 library:getArtist IPC 取（artist / albums / tracks 三件套）。
  * bio / 热门曲目等属 0.5（计划 §3.7 / T6），本期不接。
  *
- * 播放/随机播放按钮：同 AlbumDetail，经 playerBridge 占位（T5.6 接通 loadContext）。
+ * 播放/随机播放按钮：同 AlbumDetail，T5.6 经 playerBridge 接通 playerStore.loadContext。
  * 专辑网格复用 AlbumCard 形态（与 Albums 页一致），卡片点按进入 AlbumDetail。
  */
 export function ArtistDetail(): ReactElement {
@@ -24,6 +27,17 @@ export function ArtistDetail(): ReactElement {
     () => api.library.getArtist(artistId),
     [artistId]
   )
+
+  // T5.6：曲目表右键「下一首播放 / 添加到队列」接 playerStore；不可播双击 → toast。
+  const handlePlayNext = (track: TrackRow): void => {
+    usePlayerStore.getState().playNext(track)
+  }
+  const handleEnqueue = (track: TrackRow): void => {
+    usePlayerStore.getState().enqueue(track)
+  }
+  const handleUnplayableActivate = (): void => {
+    useToastStore.getState().showToast(t('player.unsupportedFormat'))
+  }
 
   if (error) {
     return (
@@ -92,7 +106,7 @@ export function ArtistDetail(): ReactElement {
               type="button"
               className="round-action"
               aria-label={t('albumDetail.shuffle')}
-              onClick={() => shuffleContext(shuffleTracks(tracks))}
+              onClick={() => shuffleContext(tracks)}
             >
               <Icon name="shuffle" size={20} />
             </button>
@@ -144,7 +158,10 @@ export function ArtistDetail(): ReactElement {
         // 仅驱动表头 aria-sort 失真（用户无法改序），随 sortable 开关一并移除。
         sortable={false}
         className="detail-tracklist"
-        onActivate={(track) => playContext(tracks, tracks.indexOf(track))}
+        onActivate={(_track, index) => playContext(tracks, index)}
+        onPlayNext={handlePlayNext}
+        onEnqueue={handleEnqueue}
+        onUnplayableActivate={handleUnplayableActivate}
       />
     </div>
   )

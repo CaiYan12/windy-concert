@@ -34,8 +34,13 @@ export interface TrackRowItemProps {
   isPlaying: boolean
   isSelected: boolean
   onSelect?: (id: string) => void
-  /** 双击 / 行内播放按钮 → 播放该曲目（missing / 不可播不触发）。 */
-  onActivate?: (track: TrackRow) => void
+  /** 双击 / 行内播放按钮 → 播放该曲目（传 track 与行内 index，供整队 playContext 定位）。 */
+  onActivate?: (track: TrackRow, index: number) => void
+  /**
+   * 双击 / 行内播放按钮作用到 missing / 不可播曲目时触发（T5.6 不可播 toast 接线）。
+   * 与 onActivate 互斥：playable 走 onActivate，否则走 onUnplayableActivate（留痕）。
+   */
+  onUnplayableActivate?: (track: TrackRow, index: number) => void
   onToggleFavorite?: (track: TrackRow, next: boolean) => void
   onOpenMenu?: (event: ReactMouseEvent, track: TrackRow) => void
 }
@@ -47,6 +52,7 @@ export function TrackRowItem({
   isSelected,
   onSelect,
   onActivate,
+  onUnplayableActivate,
   onToggleFavorite,
   onOpenMenu
 }: TrackRowItemProps): ReactElement {
@@ -83,7 +89,11 @@ export function TrackRowItem({
         : `${t('menu.play')} ${track.title}`
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    if (event.key === 'Enter' && playable) onActivate?.(track)
+    if (event.key === 'Enter') {
+      // playable 走 onActivate，否则走 onUnplayableActivate（不可播 toast 接线）。
+      if (playable) onActivate?.(track, index)
+      else onUnplayableActivate?.(track, index)
+    }
   }
 
   return (
@@ -94,9 +104,11 @@ export function TrackRowItem({
       aria-selected={isSelected || undefined}
       onClick={() => onSelect?.(track.id)}
       onDoubleClick={() => {
-        // missing / 不可播：双击无效（§3.7 line 572）。此处拦截由 TrackList.test.tsx 的
-        // 客户端挂载用例锚定（断言缺失 / 不可播行双击不触发 onActivate，正常行触发一次）。
-        if (playable) onActivate?.(track)
+        // missing / 不可播：双击不触发播放，改走 onUnplayableActivate（T5.6 不可播 toast，
+        // §3.7 line 572）。此拦截由 TrackList.test.tsx 客户端挂载用例锚定：缺失 / 不可播行
+        // 双击不触发 onActivate，而触发 onUnplayableActivate；正常行触发 onActivate 一次。
+        if (playable) onActivate?.(track, index)
+        else onUnplayableActivate?.(track, index)
       }}
       onKeyDown={onKeyDown}
       onContextMenu={(event) => {
@@ -123,7 +135,8 @@ export function TrackRowItem({
               aria-label={playLabel}
               title={state === 'unplayable' ? t('track.unplayableTooltip') : undefined}
               onClick={() => {
-                if (playable) onActivate?.(track)
+                if (playable) onActivate?.(track, index)
+                else onUnplayableActivate?.(track, index)
               }}
             >
               <Icon name={playIcon} size={16} />

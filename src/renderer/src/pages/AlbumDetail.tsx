@@ -1,12 +1,15 @@
 import { Link, useParams } from 'react-router-dom'
 import { type ReactElement } from 'react'
+import type { TrackRow } from '../../../shared/types'
 import { useI18n } from '../i18n'
+import { usePlayerStore } from '../stores/playerStore'
+import { useToastStore } from '../stores/toastStore'
 import { api } from '../ipc/client'
 import { Cover } from '../components/Cover'
 import { Icon } from '../components/Icon'
 import { TrackList } from '../components/TrackList'
 import { useBrowseData } from './useBrowseData'
-import { playContext, shuffleContext, shuffleTracks } from './playerBridge'
+import { playContext, shuffleContext } from './playerBridge'
 
 /**
  * AlbumDetail 页（T4.4）——专辑详情（§3.7：Hero 渐变 + 封面 200 + 标题/艺术家/年份·曲目数 +
@@ -15,8 +18,9 @@ import { playContext, shuffleContext, shuffleTracks } from './playerBridge'
  * Hero 渐变（.hero--album in styles/browse.css）：**全项目唯一允许的渐变**（§3.7 / T4.4 计划）。
  * 颜色硬编码为设计稿字面值 #2a2832 → var(--bg-base)（设计稿 mockup.css:1069，不在 tokens 里，留痕）。
  *
- * 随机播放（T4.4 计划）：将曲目数组洗牌后 loadContext——playerStore 未建（T5.6），先经
- * playerBridge.shuffleContext 挂占位；playContext 同理。两按钮是 T5.6 接通 loadContext 的唯一切换点。
+ * 随机播放（T4.4 计划）：将曲目数组洗牌后 loadContext——T5.6 经 playerBridge.shuffleContext 接通
+ * playerStore.loadContext(shuffle(tracks), 0)。「播放」按钮 playContext(tracks, 0)、曲目表双击整队
+ * 同理，两按钮与 TrackList 双击是 T5.6 接通 loadContext 的唯一切换点（playerBridge 内部转调 store）。
  */
 export function AlbumDetail(): ReactElement {
   const { t } = useI18n()
@@ -26,6 +30,18 @@ export function AlbumDetail(): ReactElement {
     () => api.library.getAlbum(albumId),
     [albumId]
   )
+
+  // T5.6：曲目表右键「下一首播放 / 添加到队列」接 playerStore；不可播双击 → toast。
+  // store 动作经 getState 调，避免无谓重渲染。
+  const handlePlayNext = (track: TrackRow): void => {
+    usePlayerStore.getState().playNext(track)
+  }
+  const handleEnqueue = (track: TrackRow): void => {
+    usePlayerStore.getState().enqueue(track)
+  }
+  const handleUnplayableActivate = (): void => {
+    useToastStore.getState().showToast(t('player.unsupportedFormat'))
+  }
 
   if (error) {
     return (
@@ -100,7 +116,7 @@ export function AlbumDetail(): ReactElement {
               type="button"
               className="round-action"
               aria-label={t('albumDetail.shuffle')}
-              onClick={() => shuffleContext(shuffleTracks(tracks))}
+              onClick={() => shuffleContext(tracks)}
             >
               <Icon name="shuffle" size={20} />
             </button>
@@ -115,7 +131,10 @@ export function AlbumDetail(): ReactElement {
         // 仅驱动表头 aria-sort 失真（用户无法改序），随 sortable 开关一并移除。
         sortable={false}
         className="detail-tracklist"
-        onActivate={(track) => playContext(tracks, tracks.indexOf(track))}
+        onActivate={(_track, index) => playContext(tracks, index)}
+        onPlayNext={handlePlayNext}
+        onEnqueue={handleEnqueue}
+        onUnplayableActivate={handleUnplayableActivate}
       />
     </div>
   )

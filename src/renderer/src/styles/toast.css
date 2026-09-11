@@ -1,0 +1,54 @@
+// T5.6 轻量 toast 样式（tokens 化，设计稿 mockup.css .toast-* 段直迁）。
+// 全局引入（App.tsx），与 cover/tracklist 同层生效；单例替换不堆叠（ToastHost 始终同一节点）。
+
+.toast-stack {
+  position: fixed;
+  z-index: var(--z-toast);
+  right: 16px;
+  bottom: calc(var(--playerbar-h) + 16px);
+  display: grid;
+  width: min(320px, calc(100vw - 32px));
+  gap: 8px;
+}
+
+.toast {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-float);
+  color: var(--text-primary);
+  transition:
+    transform var(--duration-toast) var(--ease-out),
+    opacity var(--duration-toast) var(--ease-out);
+}
+
+.toast.is-hidden {
+  display: none;
+}
+
+.toast-icon {
+  color: var(--accent);
+}
+
+.toast-icon .library-icon {
+  opacity: 1;
+}
+
+.toast-copy {
+  min-width: 0;
+}
+
+.toast-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.toast-help {
+  margin-top: 1px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}

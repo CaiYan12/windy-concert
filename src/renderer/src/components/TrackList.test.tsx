@@ -305,9 +305,11 @@ describe('TrackRowItem 双击拦截（I3：事件驱动，非 SSR）', () => {
   function mountRow(track: TrackRow): {
     row: HTMLElement
     onActivate: ReturnType<typeof vi.fn>
+    onUnplayableActivate: ReturnType<typeof vi.fn>
     unmount: () => void
   } {
     const onActivate = vi.fn()
+    const onUnplayableActivate = vi.fn()
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -319,6 +321,7 @@ describe('TrackRowItem 双击拦截（I3：事件驱动，非 SSR）', () => {
           isPlaying={false}
           isSelected={false}
           onActivate={onActivate}
+          onUnplayableActivate={onUnplayableActivate}
         />
       )
     })
@@ -327,6 +330,7 @@ describe('TrackRowItem 双击拦截（I3：事件驱动，非 SSR）', () => {
     return {
       row,
       onActivate,
+      onUnplayableActivate,
       unmount: () => {
         act(() => root.unmount())
         container.remove()
@@ -334,32 +338,39 @@ describe('TrackRowItem 双击拦截（I3：事件驱动，非 SSR）', () => {
     }
   }
 
-  it('正常行双击 → onActivate 触发一次，参数为该曲目', () => {
+  it('正常行双击 → onActivate 触发一次，参数为该曲目 + 行内 index', () => {
     const track = makeTrack()
-    const { row, onActivate, unmount } = mountRow(track)
+    const { row, onActivate, onUnplayableActivate, unmount } = mountRow(track)
     act(() => {
       row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
     })
     expect(onActivate).toHaveBeenCalledTimes(1)
-    expect(onActivate).toHaveBeenCalledWith(track)
+    expect(onActivate).toHaveBeenCalledWith(track, 0)
+    expect(onUnplayableActivate).not.toHaveBeenCalled()
     unmount()
   })
 
-  it('missing 行双击 → onActivate 不触发', () => {
-    const { row, onActivate, unmount } = mountRow(makeTrack({ status: 'missing', playable: false }))
+  it('missing 行双击 → onActivate 不触发，改触发 onUnplayableActivate', () => {
+    const track = makeTrack({ status: 'missing', playable: false })
+    const { row, onActivate, onUnplayableActivate, unmount } = mountRow(track)
     act(() => {
       row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
     })
     expect(onActivate).not.toHaveBeenCalled()
+    expect(onUnplayableActivate).toHaveBeenCalledTimes(1)
+    expect(onUnplayableActivate).toHaveBeenCalledWith(track, 0)
     unmount()
   })
 
-  it('不可播行双击 → onActivate 不触发', () => {
-    const { row, onActivate, unmount } = mountRow(makeTrack({ playable: false }))
+  it('不可播行双击 → onActivate 不触发，改触发 onUnplayableActivate', () => {
+    const track = makeTrack({ playable: false })
+    const { row, onActivate, onUnplayableActivate, unmount } = mountRow(track)
     act(() => {
       row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
     })
     expect(onActivate).not.toHaveBeenCalled()
+    expect(onUnplayableActivate).toHaveBeenCalledTimes(1)
+    expect(onUnplayableActivate).toHaveBeenCalledWith(track, 0)
     unmount()
   })
 })

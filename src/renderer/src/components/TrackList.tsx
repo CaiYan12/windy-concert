@@ -35,7 +35,8 @@ export type { TrackContextMenuProps } from './TrackContextMenu'
  *   · 播放/队列：本任务**不创建 playerStore**（越界，属 T5.6）。「下一首播放 / 添加到队列」经
  *     onPlayNext / onEnqueue 注入，缺省为 no-op；playingTrackId 由消费方给定，缺省不渲染假播放行。
  *   · 收藏：纯视觉（按 track.favorite 渲染 ♡/♥），改动经可选 onToggleFavorite 回调外抛。
- *   · 双击 → onActivate（missing / 不可播行被拦截，不触发）。
+ *   · 双击 → onActivate（传 track + 行内 index）；missing / 不可播行被拦截改走
+ *     onUnplayableActivate（T5.6 不可播 toast，与 onActivate 互斥）。
  *
  * 分页 × 虚拟滚动取舍（T4.2 I-3 立案，本任务定调）：
  *   **采用「当前页渲染 + virtuoso 只做行渲染优化」**，不扩展 store 的 append/loadMore。
@@ -176,7 +177,10 @@ export interface TrackListProps {
   onPlayNext?: (track: TrackRow) => void
   onEnqueue?: (track: TrackRow) => void
   onToggleFavorite?: (track: TrackRow, next: boolean) => void
-  onActivate?: (track: TrackRow) => void
+  /** 双击 / 行内播放 → 播放该曲目（传 track 与行内 index，供整队 playContext 定位）。 */
+  onActivate?: (track: TrackRow, index: number) => void
+  /** 双击 / 行内播放作用到 missing / 不可播曲目时触发（T5.6 不可播 toast）。 */
+  onUnplayableActivate?: (track: TrackRow, index: number) => void
   /** 「添加到歌单」子菜单数据源（本任务无 playlist store，缺省空 → 仅「新建歌单」）。 */
   playlists?: readonly PlaylistSummary[]
   onAddToPlaylist?: (track: TrackRow, playlistId: number) => void
@@ -198,6 +202,7 @@ export function TrackList({
   onEnqueue,
   onToggleFavorite,
   onActivate,
+  onUnplayableActivate,
   playlists = [],
   onAddToPlaylist,
   onCreatePlaylist
@@ -223,6 +228,7 @@ export function TrackList({
         isSelected={selectedId === track.id}
         onSelect={setSelectedId}
         onActivate={onActivate}
+        onUnplayableActivate={onUnplayableActivate}
         onToggleFavorite={onToggleFavorite}
         onOpenMenu={(event, t2) => {
           menuTriggerRef.current = event.currentTarget as HTMLElement
@@ -231,7 +237,7 @@ export function TrackList({
         }}
       />
     ),
-    [playingTrackId, selectedId, onActivate, onToggleFavorite]
+    [playingTrackId, selectedId, onActivate, onUnplayableActivate, onToggleFavorite]
   )
 
   const computeItemKey = useCallback((index: number) => songs[index]?.id ?? index, [songs])

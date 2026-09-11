@@ -1,8 +1,11 @@
 import { useEffect, type ReactElement } from 'react'
-import type { SortKey } from '../../../shared/types'
+import type { SortKey, TrackRow } from '../../../shared/types'
 import { useI18n } from '../i18n'
 import { useLibrary } from '../stores/libraryStore'
+import { usePlayerStore } from '../stores/playerStore'
+import { useToastStore } from '../stores/toastStore'
 import { ensureStatsLoaded, formatCount, useStats } from '../stores/statsStore'
+import { playContext } from './playerBridge'
 import { TrackList } from '../components/TrackList'
 
 /**
@@ -45,6 +48,21 @@ export function Songs(): ReactElement {
   const { t } = useI18n()
   const library = useLibrary()
   const { stats } = useStats()
+
+  // T5.6：双击整队（上下文 = 当前页视图 songs，startIndex = 当页行号）；右键菜单接 playNext/enqueue；
+  // 不可播双击 → 轻量 toast「M0.1 暂不支持此格式播放」。store 动作经 getState 调，避免无谓重渲染。
+  const handleActivate = (_track: TrackRow, index: number): void => {
+    playContext(library.songs, index)
+  }
+  const handlePlayNext = (track: TrackRow): void => {
+    usePlayerStore.getState().playNext(track)
+  }
+  const handleEnqueue = (track: TrackRow): void => {
+    usePlayerStore.getState().enqueue(track)
+  }
+  const handleUnplayableActivate = (): void => {
+    useToastStore.getState().showToast(t('player.unsupportedFormat'))
+  }
 
   useEffect(() => {
     void library.refresh()
@@ -93,6 +111,10 @@ export function Songs(): ReactElement {
         sortBy={library.params.sortBy}
         order={library.params.order}
         onSortChange={library.setSort}
+        onActivate={handleActivate}
+        onPlayNext={handlePlayNext}
+        onEnqueue={handleEnqueue}
+        onUnplayableActivate={handleUnplayableActivate}
       />
       {showPagination && (
         <nav className="songs-pagination" aria-label={t('songs.pagination.label')}>
