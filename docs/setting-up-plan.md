@@ -908,6 +908,8 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
 
 **具体技术实现**
 
+- [ ] **T6.0 Phase 6 前置小包**（Phase 5 收尾评审产出，2026-09-11 用户裁定先行）：① `ensureVolumeRestored()` 接线——App 挂载调用（音量/静音持久化只写不读的跨任务缝隙）+ 启动恢复单测；② **audio error 事件链路**——AudioEngine `error` 事件订阅（现零订阅）→ service 结算口径（**备案裁定：「loadTrack 即计」口径不回冲**——CONTEXT.md 计数语义锚在 loadTrack，error 时补 updateOutcome(completed:0, playedDuration:0) 结算会话，不新增递减 IPC；不自动跳下一首避免坏文件连跳风暴）→ UI 错误态（toast）+ playing=false → 单测 + e2e（损坏文件路径）；③ **QueuePanel 关闭焦点回落**（计划 903 行验收项）——关闭后焦点回触发按钮（PlayerBar 队列钮；onToggleQueue 传触发元素或 AppShell 持 ref）+ 单测 + 键盘走查留痕。
+
 - [ ] **T6.1 收藏**：TrackList ♡/♥（`heart.svg`/`heart--accent.svg` 变体切换）、播放栏收藏按钮、Liked 页（绿色低透明渐变 Hero + `arrow-up-down` 排序下拉，5 键白名单，对照 Liked.html）；三处状态全局同步（同一 zustand 切片）。
 - [ ] **T6.2 歌单 CRUD**：Playlists 页（网格 + CollageCover + 虚线「新建歌单」卡 + 内联命名输入，对照 Playlists.html）；PlaylistDetail（双击标题内联重命名 `pencil`、删除=行内确认条（`--danger` 文字，3s 无操作收回）、添加曲目右键子菜单、移除曲目；对照 PlaylistDetail.html）。
 - [ ] **T6.3 拖拽重排**：PlaylistDetail 曲目表 HTML5 DnD（`grip-vertical` 手柄；dragstart 行 60% 透明、dragover 目标行上缘 2px `--accent` 插入线——mockup 已给视觉样本，本任务实现交互）→ 全量 `playlists:reorder`（repo 层事务重写，见 T1.4）。
