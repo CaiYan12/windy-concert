@@ -205,6 +205,17 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
     // descendant 形态（覆盖 .track-table .track-row 的 10 列格），不可标 strict。
     selector: '.track-table--compact .track-row',
     guards: '紧凑表 6 列格覆盖（mockup.css:760）；缺则 6 格行套 10 列模板，列错位不可读'
+  },
+  // --- T4.9 Songs 翻页（browse.css）语义关键类 ---
+  {
+    selector: '.songs-pagination',
+    guards: 'Songs 页脚翻页控件容器（flex 居中布局）；缺则控件塌陷为无样式流式文本',
+    strict: true
+  },
+  {
+    selector: '.songs-pagination-button:disabled',
+    guards: '翻页禁用态（首页禁上一页/末页禁下一页——禁假总数约束下唯一的边界反馈）；缺则越界不可见',
+    strict: true
   }
 ]
 
