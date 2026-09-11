@@ -47,7 +47,11 @@ Phase 5 已完成 T5.1~T5.7（queue 逐字冻结 / 三件套 / 播放栏 / 队�
 - **[T6.0 前置小包] `ensureVolumeRestored()` 接线**：音量/静音持久化**只写不读**（T5.3 建机制、无任务认领接线），每次启动回退 DEFAULT_VOLUME=0.8。→ App 挂载调用（AppShell 或 router loader）+ 启动恢复单测。
 - **[T6.0 前置小包] audio error 事件链路空白**：AudioEventType 声明了 error 但全仓零订阅——播放损坏/解码失败文件实况 = 假计费（playCount+1 但无声）+ playing 乐观置位无回退 + 均衡器假播动画，仅手动 next 可解。→ store/service 订阅 error → 结算口径裁定（假计费是否回冲）→ UI 错误态（toast/自动跳下一首）→ 单测 + e2e。
 - **[T6.0 前置小包] QueuePanel 关闭焦点回落**：计划验收标准明文「关闭后焦点回落触发按钮」——AppShell onClose 无 focus 管理，x 关闭后焦点落 body。→ 补 focus 管理 + 键盘走查留痕（计划 903 行验收项后半句）。
-- **Albums 卡片播放钮副作用升级**：`playContext([])` 在 T5.3 I1 修复后从 no-op 变成**会停掉正在播音乐**。→ Phase 6 立案正式接通（先取专辑曲目再 playContext）。
+- **Albums 卡片播放钮副作用升级**：`playContext([])` 在 T5.3 I1 修复后从 no-op 变成**会停掉正在播音乐**。→ Phase 6 立案正式接通（先取专辑曲目再 playContext）。- **Liked 术语整改（T6 范围承接）**：用户裁定统一用「收藏」，设计稿 `Liked.html` / design-plan §4.6 的「喜欢的音乐」需改——**T6 开工前先解除 `docs/design/**` 只读约束**再执行（T4.3 备案，评审清单第 2 项，此前收录时遗漏现补回）。
+- **playlistRepo 守卫（Phase 1 遗留承接）**：`reorder([])` 无守卫会清空歌单、`addTracks` 遇不存在 trackId 的 FK 报错不友好。→ **Phase 6 歌单 UI 接入时**补守卫与错误文案（原建议时机即 Phase 6，在案）。
+- **folderRepo.normalizePath 边界**：UNC 主机段大小写未归一、根路径 `C:\` 归一为 `c:`、空串无校验。→ 原建议时机 Phase 3/4 消费时加固，已过而未做——**Phase 6 顺延承接**（扫描对账已上线，风险中低）。
+- **计划 §3.4 FTS 触发器正文**：代码已按批准修正为标准 DELETE，计划正文仍为历史原文（'delete' 语法）——按 T4.10 起的口径**保留历史原文 + 执行备注引用**，不再单独排期（在案确认）。
+
 - **audio error 测试缺口**（与上条同源）：单测 + e2e 双缺（解码失败/损坏文件路径）。
 - **history:listRecent 无 e2e 断言**：playCount 经 getTrack 有断言，playedDuration/completed 落库值无端到端验证（service 侧 payload 已有单测锚定，风险中低）。→ 建议时机：Phase 6 e2e 扩展顺手补。
 - **QueuePanel 随 position 高频重渲**：usePlayer() 全态订阅但只消费 queueView（每 250ms 重渲整面板）。→ selector 化（照 usePlayingTrackId 先例），建议时机：Phase 6 顺手。
