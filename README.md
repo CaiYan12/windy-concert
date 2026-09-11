@@ -40,18 +40,22 @@ npm run dist       # 生产构建 + electron-builder --win dir
 
 ## 暂未解决的问题
 
-**Phase 4（应用 Shell 与浏览/搜索 UI）——Phase 5 前置清单（第三方收尾评审产出，2026-09-11，按序）**
+**Phase 5（播放器核心与队列）——Phase 6 前置清单（第三方收尾评审产出，2026-09-11，按序）**
 
-Phase 4 已完成 T4.0~T4.10（含收尾评审新增的 T4.9 Songs 翻页 / T4.10 遗忘前置收口，均经评审闭环）。最终状态：345 unit tests / typecheck 0 / e2e 11 passed。
+Phase 5 已完成 T5.1~T5.7（queue 逐字冻结 / 三件套 / 播放栏 / 队列面板 / 接通 / e2e）。最终状态：**502 unit tests / typecheck 0 / e2e 16 passed**（playback-queue 连跑 3 轮无 flaky）；queue.ts 与计划 §3.5b SHA1 一致经收尾评审独立复验。上轮 Phase 5 前置清单收口：Detail 排序 dead affordance ✅（T4.11 sortable + 详情页 false）；songsCount ✅（T4.11 getStats）；card-play affordance 统一 → 见下「Albums 卡片播放钮」升级立案。
 
-- **Detail 页排序 dead affordance**：AlbumDetail/ArtistDetail 表头排序按钮可见可点但 `onSortChange` 未注入（点击无响应），且 `sortBy="title"` 的 aria-sort 指示与实际 disc→trackNumber 排序不符。→ **T5.6 接线时**禁用或接通，并修正 aria-sort 失真。
-- ✅ **已解决（T4.11，2026-09-11，用户裁定 getStats 选型）**：新增 `library:getStats` 只读通道（tracks/albums/artists 总数，additive）；Songs 页头副行按设计稿渲染真实总数（含千位分隔与「按X排序」动态插值）；翻页末页判定根治（total 就绪 `offset+limit<total` + 「共 M 页」）；Sidebar「歌曲」徽标接线真实计数（设计稿仅此一项有徽标位）。附：statsStore scan done 分支专属单测欠账（与 libraryStore 同模式）随 Phase 5 顺手补。
-- **Albums/Artists 全量渲染无分页无虚拟化**（Albums.tsx 注释自认）：30k 曲库折算约 600~1000 专辑卡 × ~10 DOM 节点，Phase 8 性能验收首屏挂载大概率暴露。→ **建议时机：T8 前**立项（网格虚拟化或服务端分页）。
-- **covers:ready 渲染层零订阅**：扫描中途已挂载的 Albums/Artists/详情页在封面就绪后不补渲（Songs 页靠 done→refresh 兜底）。→ **建议时机：Phase 7** 扫描接线时一并处理。
-- **electron-builder.yml 仍为模板默认**：appId/productName/publish 指向 example.com、NSIS+mac+linux 三平台全配，与 V1.1 发布形态（build\ 绿色目录 + zip，NSIS 后置）有系统性差距（asarUnpack 已就位）。→ **建议时机：T8** 打包任务系统性重写 target/artifactName/打包脚本。
-- **Albums 卡有 card-play 而 ArtistDetail 专辑卡无**（同组件形态 affordance 不一致）。→ **建议时机：T5.6/后续**统一。
-- **shared/ipc.ts 对 main repo 四形态（AlbumDetail/ArtistDetail/PlaylistDetail/PlaylistRow）为 type-only 反向 import**（运行时零依赖，构建期擦除）。→ 预防性：后续可下沉 `shared/types.ts`（不紧迫）。
-- **Phase 8 性能验收提醒**：单测侧 Git Bash 偶发 vitest worker 全挂（`reading 'config'`，上游 vitest#10692 小写盘符 cwd），PowerShell 大写盘符 cwd 稳定——跨会话跑测试以此为准。
+- **[T6.0 前置小包] `ensureVolumeRestored()` 接线**：音量/静音持久化**只写不读**（T5.3 建机制、无任务认领接线），每次启动回退 DEFAULT_VOLUME=0.8。→ App 挂载调用（AppShell 或 router loader）+ 启动恢复单测。
+- **[T6.0 前置小包] audio error 事件链路空白**：AudioEventType 声明了 error 但全仓零订阅——播放损坏/解码失败文件实况 = 假计费（playCount+1 但无声）+ playing 乐观置位无回退 + 均衡器假播动画，仅手动 next 可解。→ store/service 订阅 error → 结算口径裁定（假计费是否回冲）→ UI 错误态（toast/自动跳下一首）→ 单测 + e2e。
+- **[T6.0 前置小包] QueuePanel 关闭焦点回落**：计划验收标准明文「关闭后焦点回落触发按钮」——AppShell onClose 无 focus 管理，x 关闭后焦点落 body。→ 补 focus 管理 + 键盘走查留痕（计划 903 行验收项后半句）。
+- **Albums 卡片播放钮副作用升级**：`playContext([])` 在 T5.3 I1 修复后从 no-op 变成**会停掉正在播音乐**。→ Phase 6 立案正式接通（先取专辑曲目再 playContext）。
+- **audio error 测试缺口**（与上条同源）：单测 + e2e 双缺（解码失败/损坏文件路径）。
+- **history:listRecent 无 e2e 断言**：playCount 经 getTrack 有断言，playedDuration/completed 落库值无端到端验证（service 侧 payload 已有单测锚定，风险中低）。→ 建议时机：Phase 6 e2e 扩展顺手补。
+- **QueuePanel 随 position 高频重渲**：usePlayer() 全态订阅但只消费 queueView（每 250ms 重渲整面板）。→ selector 化（照 usePlayingTrackId 先例），建议时机：Phase 6 顺手。
+- **advance() resolve 失败分支不 pause**（防御路径与 null 分支不一致，现实不可达）。→ Phase 6 顺手统一。
+- **enqueue 重复曲目去重裁定**：面板如实呈现现状留痕在案。→ T5.6 右键菜单 toast 时顺带裁定（承接 T5.5 备注）。
+- **SearchResults 紧凑表不接播放**：范围裁定确认在案（非 TrackList），无需动作。
+- **volume/seek 边界用例**：clamp 防御在、专项边界用例缺。→ 建议时机：Phase 6/8 随对应修复补。
+- **环境备注（评审实锤）**：vitest 5.0.0 在 Windows **小写盘符 cwd** 下全部测试文件报 `reading 'config'`（vitest#10692/#10843）——「测试必须以大写 D:\Dev\windy-concert 入口」约束的本质即此；诊断期 `npm ci`（lockfile 口径）无害。
 
 **Phase 3（IPC / Preload / 设置 / i18n）——前置清单收口情况（2026-09-11 Phase 4 收尾更新）**
 
