@@ -655,8 +655,8 @@ a {
 }
 
 /* ---------- 队列面板（mockup.css:1665-1763） ---------- */
-/* 常驻 DOM、关闭位（translateX(100%)）。开合状态类 `.queue-open`（mockup.css:1682-1684）与
-   开合入口属 T5.5，故不在此声明永不生效的规则。 */
+/* 常驻 DOM、关闭位（translateX(100%)）。开合状态类 `.queue-open`（T5.5 接线）挂 .app-shell
+   祖先——设计稿选择器为后代形态（mockup.css:1682-1684），AppShell 留痕。 */
 .queue-panel {
   position: fixed;
   z-index: var(--z-panel);
@@ -672,6 +672,11 @@ a {
   box-shadow: var(--shadow-float);
   transform: translateX(100%);
   transition: transform var(--duration-drawer) var(--ease-standard);
+}
+
+/* T5.5 展开位（mockup.css:1682-1684 逐字）。 */
+.queue-open .queue-panel {
+  transform: translateX(0);
 }
 
 .queue-head {
@@ -698,6 +703,67 @@ a {
   padding: 16px;
   scrollbar-color: var(--text-tertiary) transparent;
   scrollbar-width: thin;
+}
+
+/* ---------- T5.5 三段结构与行（mockup.css:1690-1763 逐字迁移；分组选择器按
+   css-contract strict 要求拆为单条规则，样式值不变，留痕） ---------- */
+.queue-section + .queue-section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--divider);
+}
+
+.queue-section-label {
+  margin-bottom: 8px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.queue-row {
+  display: grid;
+  min-height: 56px;
+  grid-template-columns: 40px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+}
+
+.queue-row:hover {
+  background: var(--row-hover);
+}
+
+/* 当前曲行：标题 accent（裁定备注：静态指示，无第二无限动画）。.queue-icon 的着色对
+   <img> 图标无效（描边已烘焙进 music-2--accent 变体文件），保留以对齐设计稿文本语义。 */
+.queue-row.is-playing .queue-title,
+.queue-row.is-playing .queue-icon {
+  color: var(--accent);
+}
+
+.queue-row.is-up-next .queue-icon {
+  color: var(--text-tertiary);
+}
+
+/* mockup.css 中 .queue-title/.queue-artist 为分组声明，此处拆分（值逐字不变）。 */
+.queue-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+.queue-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.queue-icon {
+  color: var(--text-tertiary);
 }
 
 /* ---------- T4.1 占位期 disabled 态（设计稿未定义，留痕） ----------

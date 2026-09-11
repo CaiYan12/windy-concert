@@ -265,6 +265,52 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
     // descendant 形态（.transport .icon-button.is-active 盒阴影），不可标 strict。
     selector: '.transport .icon-button.is-active',
     guards: 'Shuffle/Repeat 激活态（SVG 无法变色，以 accent 描边环表达开关态）；缺则开关态不可辨'
+  },
+  // --- T5.5 队列面板（shell.css）语义关键类 ---
+  {
+    // descendant 形态（状态类挂 .app-shell 祖先，设计稿 mockup.css:1682-1684 原样），不可标 strict。
+    selector: '.queue-open .queue-panel',
+    guards: '队列面板展开位（translateX(0) + 抽屉过渡）；缺则开合入口点击无展开'
+  },
+  {
+    selector: '.queue-section',
+    guards: '三段结构段容器（段间分隔线 + 间距）；缺则三段贴叠不可辨读',
+    strict: true
+  },
+  {
+    selector: '.queue-section-label',
+    guards: '段标题（正在播放/下一首播放/下次播放，小写字距排版）；缺则段无题',
+    strict: true
+  },
+  {
+    selector: '.queue-row',
+    guards: '队列行网格（40px 封面 + 主文 + 22px 尾标）；缺则行塌陷、列错位',
+    strict: true
+  },
+  {
+    // descendant 形态（.queue-title/.queue-icon 着色），不可标 strict。
+    selector: '.queue-row.is-playing',
+    guards: '当前曲行 accent 着色（裁定：静态 --accent 指示，无第二无限动画）；缺则当前曲不可辨'
+  },
+  {
+    // descendant 形态（.queue-icon 弱化），不可标 strict。
+    selector: '.queue-row.is-up-next',
+    guards: '插队行尾标弱化（corner-down-right 语义层次）；缺则插队/顺序行无差别'
+  },
+  {
+    selector: '.queue-title',
+    guards: '行标题溢出省略 + semibold（mockup 分组声明按 strict 要求拆分，值不变）',
+    strict: true
+  },
+  {
+    selector: '.queue-artist',
+    guards: '行副标题（--text-secondary / xs）溢出省略',
+    strict: true
+  },
+  {
+    selector: '.queue-icon',
+    guards: '行尾指示盒（默认三级色；playing 段 accent 由 is-playing 规则覆盖）',
+    strict: true
   }
 ]
 

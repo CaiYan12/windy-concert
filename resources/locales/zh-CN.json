@@ -152,6 +152,8 @@
   "queue.clear": "清空队列",
   "queue.empty": "队列为空",
   "queue.nowPlaying": "正在播放",
+  "queue.upNextUserQueue": "下一首播放",
+  "queue.upNext": "下次播放",
   "hires.badge": "Hi-Res",
   "hires.label": "Hi-Res 音质",
   "hires.format": "格式",

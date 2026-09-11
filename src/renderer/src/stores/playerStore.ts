@@ -18,6 +18,19 @@
 //     T3.4 key 清单已存在，无需扩展——留痕）；App 挂载时调用（T5.4+ 接线）。
 //   · 层间约束（计划 679 行）：player/** 不得 import library/playlists 数据模块——曲目数据
 //     全部经参数注入（loadContext(tracks) 由页面传入），本文件只依赖 shared 类型。
+//   · T5.5 平行插队列表（用户裁定 2026-09-11）：queue.ts §3.5b 逐字冻结，order 中无法区分
+//     「插队曲」与「顺序曲」，故插队意图在本层以 userQueueIds 平行记录（playNext 语义序）。
+//     维护规则：
+//       a) 播放推进（ended / 手动 next/previous）换到某曲时，该曲若在列表中则移除（播过即
+//          离开「下一首播放」段）；restarted（repeat-one / 队首重启）不换曲，不消费；
+//       b) loadContext 新上下文整体清空；
+//       c) shuffle 开关不动列表——它是「用户意图序」，渲染时与 queue.upNext 求交过滤，
+//          已不在 upNext 中的 id 丢弃（裁定原文：shuffle 下不依赖差集推断）；
+//       d) 列表只记 playNext：enqueue 尾插曲在视觉上与顺序曲无差别（同在「下次播放」段尾），
+//          两动作语义区分留给 T5.6 右键菜单，视图层无需区分。
+//     层位取舍：记在 store 层而非 service——service 职责是计费与队列推进（§3.5c），插队意图
+//     属 UI 视图状态；store 本就持有 queue 闭包与上下文 TrackRow[]，推进事件（applyAdvance）
+//     也只在 store 侧可见，消费钩子天然落位。
 import { useSyncExternalStore } from 'react';
 import { create, type StoreApi } from 'zustand';
 import type { Settings, TrackRow } from '../../../shared/types';
@@ -98,6 +111,20 @@ export interface PlayModeState {
   repeat: RepeatMode;
 }
 
+/**
+ * T5.5 队列面板三段视图数据（正在播放 / 下一首播放(插队) / 下次播放）。
+ * 由 createPlayerStore 闭包内的 queue + userQueueIds + contextTracks 推导，
+ * 在每次队列/推进相关状态变更时重算并写入 zustand（queueView 键）。
+ */
+export interface QueueView {
+  /** 正在播放段（queue.current 解析；无会话为 null）。 */
+  current: TrackRow | null;
+  /** 下一首播放段：userQueueIds（用户插队意图序）∩ queue.upNext，按插队序。 */
+  upNextUserQueue: TrackRow[];
+  /** 下次播放段：queue.upNext 去掉插队段后的剩余（顺序曲 + 尾插曲，视觉无差别）。 */
+  upNextRest: TrackRow[];
+}
+
 export interface PlayerState {
   currentTrack: TrackRow | null;
   duration: number;
@@ -106,8 +133,14 @@ export interface PlayerState {
   volume: number;
   muted: boolean;
   playMode: PlayModeState;
+  /** T5.5 队列面板三段视图（正在播放/下一首播放(插队)/下次播放），见 QueueView。 */
+  queueView: QueueView;
   /** 上下文整队入队并从 startIndex 播（存 TrackRow[] + queue.loadContext(ids) + 播首曲）。 */
   loadContext(tracks: TrackRow[], startIndex?: number): void;
+  /** T5.5 插队（T5.6 右键菜单「下一首播放」接线）：queue.playNext + 平行列表登记。 */
+  playNext(track: TrackRow): void;
+  /** T5.5 尾插（T5.6 右键菜单接线）：queue.enqueue；视觉上与顺序曲无差别，不进平行列表。 */
+  enqueue(track: TrackRow): void;
   /** 播放/暂停；暂停恢复零 IPC（口径 2.1-1）。无 currentTrack 时空操作。 */
   togglePlay(): void;
   next(): void;
@@ -155,6 +188,54 @@ export function createPlayerStore(deps: CreatePlayerStoreDeps = {}): StoreApi<Pl
   const resolve = (trackId: string): TrackRow | null =>
     contextTracks.find((t) => t.id === trackId) ?? null;
 
+  // T5.5 平行插队列表（维护规则见文件头裁定留痕）：只记 playNext 的 trackId，按插队序。
+  let userQueueIds: string[] = [];
+
+  /**
+   * 三段视图推导（T5.5）。resolve 不到的 id（上下文与队列失配的防御路径）从视图丢弃并
+   * console.warn 留痕——宁可少显示一行也不渲染假数据；正常路径 playNext/enqueue 会把
+   * TrackRow 补进 contextTracks，不会走到该分支。
+   */
+  function computeQueueView(): QueueView {
+    const current = queue.current === null ? null : resolve(queue.current);
+    const upNext = queue.upNext;
+    const upNextSet = new Set(upNext);
+    const userQueueRows: TrackRow[] = [];
+    const seen = new Set<string>();
+    for (const id of userQueueIds) {
+      if (seen.has(id)) continue; // 同曲重复插队：视图去重（queue 冻结语义允许 order 重复，留痕）
+      seen.add(id);
+      if (!upNextSet.has(id)) continue; // 已被播过/已随 loadContext 清走：求交过滤（裁定 d)
+      const row = resolve(id);
+      if (row) userQueueRows.push(row);
+      else console.warn('[player] 插队列表中的曲目解析不到，已从队列面板丢弃', id);
+    }
+    // 插队段显示序与 queue 真实顺序一致：queue.playNext 是「插到当前曲后」，后插的先播，
+    // 故按 upNext 中的位置排序渲染（userQueueIds 的 push 序只是意图登记序，不作显示序）。
+    userQueueRows.sort((a, b) => upNext.indexOf(a.id) - upNext.indexOf(b.id));
+    const userQueueIdSet = new Set(userQueueRows.map((t) => t.id));
+    const rest: TrackRow[] = [];
+    for (const id of upNext) {
+      if (userQueueIdSet.has(id)) continue;
+      const row = resolve(id);
+      if (row) rest.push(row);
+      else console.warn('[player] 队列中的曲目解析不到，已从队列面板丢弃', id);
+    }
+    return { current, upNextUserQueue: userQueueRows, upNextRest: rest };
+  }
+
+  /** T5.5 推进统一尾段：applyAdvance 同步播放态 → 消费插队列表 → 重算队列视图。
+   *  换曲即消费（裁定 a)/b)）：ended 推进与手动 next/previous 走同一出口；
+   *  restarted（repeat-one / 队首重启）不换曲，不消费；stopped 队列不变，重算幂等。 */
+  function advanceWithView(result: AdvanceResult): void {
+    applyAdvance(store, result);
+    if (result.type === 'started') {
+      const idx = userQueueIds.indexOf(result.track.id);
+      if (idx !== -1) userQueueIds.splice(idx, 1); // 播过即离开插队段；previous 回跳不回填
+    }
+    store.setState({ queueView: computeQueueView() });
+  }
+
   const service = createPlaybackService({ audio, getApi, queue, resolve });
 
   // 音量恢复幂等标记（启动恢复只做一次；恢复后用户调整经 setVolume/toggleMute 正常持久化）。
@@ -168,9 +249,12 @@ export function createPlayerStore(deps: CreatePlayerStoreDeps = {}): StoreApi<Pl
     volume: DEFAULT_VOLUME,
     muted: false,
     playMode: { shuffle: queue.shuffle, repeat: queue.repeat },
+    queueView: { current: null, upNextUserQueue: [], upNextRest: [] },
 
     loadContext(tracks, startIndex = 0) {
       contextTracks = [...tracks];
+      // T5.5：新上下文 = 平行插队列表整体清空（裁定 c)）。
+      userQueueIds = [];
       queue.loadContext(
         tracks.map((t) => t.id),
         startIndex
@@ -182,11 +266,30 @@ export function createPlayerStore(deps: CreatePlayerStoreDeps = {}): StoreApi<Pl
         // 声音继续、旧会话被随后的 ended 错记为播完。之后清播放态，不动音量等设置。
         service.stop();
         set({ currentTrack: null, playing: false, position: 0, duration: 0 });
+        set({ queueView: computeQueueView() });
         return;
       }
       set({ currentTrack: first, playing: true, position: 0, duration: 0 });
       // manual=true：若上一上下文仍在播，先按 completed:0 结算再换曲（手动切歌口径）。
       service.playTrack(first, true);
+      set({ queueView: computeQueueView() });
+    },
+
+    playNext(track) {
+      queue.playNext(track.id);
+      // 平行列表去重：同曲重复插队不再登记（视图去重兜底之外从源头保证一次意图一条记录）；
+      // queue.playNext 冻结语义原样调用（order 中出现两份，视图只显示插队段一份，留痕）。
+      if (!userQueueIds.includes(track.id)) userQueueIds.push(track.id);
+      // 上下文外的曲目（如跨专辑右键）补进 TrackRow 原表：保证 resolve 与后续播放可解析。
+      if (!contextTracks.some((t) => t.id === track.id)) contextTracks.push(track);
+      set({ queueView: computeQueueView() });
+    },
+
+    enqueue(track) {
+      queue.enqueue(track.id);
+      // 尾插曲不进平行列表（裁定 d)：与顺序曲在「下次播放」段尾视觉无差别。
+      if (!contextTracks.some((t) => t.id === track.id)) contextTracks.push(track);
+      set({ queueView: computeQueueView() });
     },
 
     togglePlay() {
@@ -203,11 +306,11 @@ export function createPlayerStore(deps: CreatePlayerStoreDeps = {}): StoreApi<Pl
     },
 
     next() {
-      applyAdvance(store, service.next());
+      advanceWithView(service.next());
     },
 
     previous() {
-      applyAdvance(store, service.previous());
+      advanceWithView(service.previous());
     },
 
     stop() {
@@ -233,10 +336,14 @@ export function createPlayerStore(deps: CreatePlayerStoreDeps = {}): StoreApi<Pl
     setShuffle(on) {
       queue.setShuffle(on);
       set({ playMode: { shuffle: queue.shuffle, repeat: queue.repeat } });
+      // T5.5：shuffle 只重排 queue.order，「下一首播放」段的剩余曲目顺序跟随 upNext 变化，
+      // 平行列表内容不动（裁定 c)）——视图重算时求交过滤。
+      set({ queueView: computeQueueView() });
     },
 
     setRepeat(mode) {
       queue.setRepeat(mode);
+      // repeat 不改变 order/current，队列视图无需重算（留痕）。
       set({ playMode: { shuffle: queue.shuffle, repeat: queue.repeat } });
     },
 
@@ -267,7 +374,7 @@ export function createPlayerStore(deps: CreatePlayerStoreDeps = {}): StoreApi<Pl
       store.setState({ duration: audio.duration });
     }),
     audio.on('ended', () => {
-      applyAdvance(store, service.handleEnded());
+      advanceWithView(service.handleEnded());
     }),
   ];
   // 订阅与 store 同生命周期（工厂私有实例，无全局泄漏）；句柄保留以防后续需要（如 dispose）。

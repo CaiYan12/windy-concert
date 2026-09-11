@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 import { PlayerBar } from './PlayerBar'
@@ -25,8 +25,14 @@ import { Topbar } from './Topbar'
  */
 export function AppShell(): ReactElement {
   const { t } = useI18n()
+  // T5.5 队列面板开合 UI 态：局部 useState 即可（不进全局 store——开合纯壳层视觉态，
+  // 无跨页语义；PlayerBar onToggleQueue 切换、面板头部 x 关闭）。
+  // 状态类挂 .app-shell 祖先而非 .queue-panel 本体：设计稿选择器为 `.queue-open .queue-panel`
+  // （mockup.css:1682-1684），shell.css 逐字沿用——任务原文「类挂 .queue-panel」与设计稿
+  // 冲突处从设计稿，留痕。
+  const [queueOpen, setQueueOpen] = useState(false)
   return (
-    <div className="app-shell">
+    <div className={`app-shell${queueOpen ? ' queue-open' : ''}`}>
       <a
         className="skip-link"
         href="#main-content"
@@ -43,9 +49,9 @@ export function AppShell(): ReactElement {
         <main id="main-content" className="main-content" tabIndex={-1}>
           <Outlet />
         </main>
-        <PlayerBar />
+        <PlayerBar onToggleQueue={() => setQueueOpen((o) => !o)} />
       </section>
-      <QueuePanel />
+      <QueuePanel open={queueOpen} onClose={() => setQueueOpen(false)} />
     </div>
   )
 }
