@@ -41,6 +41,16 @@
 //    单次比较易碰撞。故不比较「单次 shuffle 是否≠原序」，而是【重复 reshuffle 收集 observed 序列，
 //    断言观测到 ≥2 种不同顺序】以证明 shuffle 确会重排（collision-all-same 概率 (1/2)^K，K=16 时
 //    ≈1.5e-5，可忽略）；「当前曲不变」为确定性断言。
+//
+// ⑦ T6.0 audio error e2e 可行性（第 6 用例）：fixtures 8 件含 1 件损坏样本 08-broken.mp3（70 字节
+//    ID3 头 + 0xff 垃圾，无有效音频帧），入库断言时被扫描器跳过——**库里没有损坏文件**，故无法经
+//    双击曲目行构造「播放损坏文件」路径。可行替代（任务书建议、不改源码）：08-broken.mp3 **随
+//    fixtures 目录整体拷入临时音乐目录（启用目录内）**，故可构造 wc-file://<该文件绝对路径>：
+//    协议校验命中启用目录 → 文件存在 → 200 返回 → Chromium 解码失败 → media 'error'。用例经
+//    page.evaluate 把 <audio>.src 指向该路径并 play()（rejection 已 catch），触发真实 error 链。
+//    断言：播放态回退（暂停钮→播放钮）、toast「无法播放该文件」、不自动跳下一首（当前曲不变）、
+//    playCount 不回冲。**不纳入「控制台零 error」断言**——故意注入失败媒体源，Chromium 可能记录
+//    媒体加载失败；未捕获异常（pageerror）仍必须为空。
 import { test, expect } from './fixtures'
 import { setupScannedLibrary, watchRequests, watchConsoleIssues, type ApiLike } from './helpers'
 
@@ -477,6 +487,69 @@ test.describe('T5.7 播放队列 e2e', () => {
       // 零 http(s) 外联 + 控制台零 error
       expect(watcher.externalUrls(), `存在 http(s) 外联：${watcher.externalUrls().join(', ')}`).toEqual([])
       expect(consoleIssues.errors, `控制台 error：${consoleIssues.errors.join(' | ')}`).toEqual([])
+      expect(consoleIssues.pageErrors, `未捕获异常：${consoleIssues.pageErrors.join(' | ')}`).toEqual([])
+    } finally {
+      cleanup()
+    }
+  })
+})
+
+// T6.0②：audio error 端到端（损坏文件路径）——可行性取证见文件头 ⑦。
+test.describe('T6.0 audio error e2e', () => {
+  test('损坏文件 → 停播 + toast + 不跳下一首 + playCount 不回冲', async ({ app }) => {
+    test.setTimeout(120_000)
+    const { firstWindow: page } = app
+    const consoleIssues = watchConsoleIssues(page)
+
+    const { musicDir, cleanup } = await setupScannedLibrary(page)
+    try {
+      const { tracks } = await openLargestAlbum(page)
+      const t2 = tracks[1]
+      await detailRows(page).nth(1).dblclick()
+
+      // 等 recordPlay 落库（≥1）：确保会话 historyId 已建立，error 结算有账可结（服务端可查）
+      await page.waitForFunction(
+        async (id: string) => {
+          const api = (window as unknown as { api: ProbeApi }).api
+          const t = await api.library.getTrack(id)
+          return !!t && t.playCount >= 1
+        },
+        t2.id,
+        { timeout: 15_000 },
+      )
+
+      // 记录注入前当前曲（短音轨可能已自动切歌，故不假定恒为 t2——以「注入后不变」为不跳下一首的判据）
+      const titleBefore = await page.locator('.player-title').textContent()
+
+      // 注入不可解码的损坏文件 src：08-broken.mp3 随 fixtures 拷入启用目录内，协议放行、文件 200 但无
+      // 有效音频 → 解码失败 → 'error'。play() 的 rejection 显式 catch（避免未捕获异常）。
+      const brokenPath = `${musicDir}\\08-broken.mp3`
+      const injected = await page.evaluate((p: string) => {
+        const a = document.querySelector('audio') as HTMLAudioElement | null
+        if (!a) return false
+        a.src = `wc-file://${encodeURIComponent(p)}`
+        void a.play().catch(() => {})
+        return true
+      }, brokenPath)
+      expect(injected, 'document.querySelector("audio") 应可达（AudioEngine 缺省路径挂 DOM）').toBe(true)
+
+      // ① 播放态回退：暂停钮 → 播放钮（playing=false；错误前为 playing=true）
+      await expect(playToggle(page)).toHaveAttribute('aria-label', '播放')
+
+      // ② toast「无法播放该文件」（ToastHost role=alert + .toast-label）
+      await expect(page.locator('.toast[role="alert"] .toast-label')).toHaveText('无法播放该文件')
+
+      // ③ 不自动跳下一首：当前曲与注入前一致（坏文件不触发连跳）
+      await expect(page.locator('.player-title')).toHaveText(titleBefore ?? '')
+
+      // ④ playCount 不回冲（只加不减）
+      const pc = await page.evaluate(async (id: string) => {
+        const api = (window as unknown as { api: ProbeApi }).api
+        return (await api.library.getTrack(id))!.playCount
+      }, t2.id)
+      expect(pc, 'error 不回冲 playCount（loadTrack 即计口径，无递减 IPC）').toBe(1)
+
+      // 未捕获异常必须为空（故意注入的媒体错误不产生 pageerror；控制台 error 不在此断言，见文件头 ⑦）
       expect(consoleIssues.pageErrors, `未捕获异常：${consoleIssues.pageErrors.join(' | ')}`).toEqual([])
     } finally {
       cleanup()

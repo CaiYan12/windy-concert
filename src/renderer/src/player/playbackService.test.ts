@@ -363,3 +363,59 @@ describe('api 缺失（preload 未就绪）', () => {
     expect(el.paused).toBe(true); // ended 后队列空 → stopped 分支已暂停（计费静默跳过不抛）
   });
 });
+
+// ---------------------------------------------------------------------------
+// T6.0② audio error 链（service 侧）——结算口径与「不回冲 playCount / 不跳下一首」硬锚
+// ---------------------------------------------------------------------------
+describe('T6.0 audio error：handleError 结算会话（completed:0 / playedDuration:0）', () => {
+  it('恰好一笔 updateOutcome(historyId, 0, false)；暂停；返回 failed；无 recordPlay 重发（不回冲 playCount）', async () => {
+    const { service, api, el, queue } = makeService([t1, t2]);
+    queue.loadContext(['t1', 't2'], 0);
+    service.playTrack(t1, true);
+    await microflush(); // recordPlay(t1) → historyId=100 落会话
+
+    // 播放中途出错：currentTime 已有值，但结算口径固定 playedDuration:0（未播成，不计时长）
+    el.currentTime = 12;
+    const before = api.calls.length;
+
+    const result = service.handleError();
+
+    expect(result).toEqual({ type: 'failed', track: t1 });
+    expect(el.paused).toBe(true); // 已暂停
+
+    // 变异锚点：删除 handleError 内 settleOutcome 调用 → 本断言红（slice 为空）
+    expect(api.calls.slice(before)).toEqual([
+      { kind: 'updateOutcome', historyId: 100, playedDuration: 0, completed: false },
+    ]);
+    // 不回冲 playCount：不得出现新的 recordPlay（无递减 IPC 口径）
+    expect(api.calls.slice(before).some((c) => c.kind === 'recordPlay')).toBe(false);
+
+    // 不自动跳下一首：队列与当前会话保持在出错曲目
+    expect(queue.current).toBe('t1');
+    expect(service.currentTrackId).toBe('t1');
+  });
+
+  it('无会话时 handleError：零结算、暂停、返回 stopped（不发 toast 的上游信号）', async () => {
+    const { service, api, el } = makeService([]);
+    const result = service.handleError();
+    expect(result).toEqual({ type: 'stopped' });
+    expect(el.paused).toBe(true);
+    expect(api.calls).toHaveLength(0);
+  });
+
+  it('结算幂等：同一会话二次 error 不产生第二笔 updateOutcome', async () => {
+    const { service, api, el, queue } = makeService([t1]);
+    queue.loadContext(['t1'], 0);
+    service.playTrack(t1, true);
+    await microflush();
+
+    service.handleError();
+    await microflush();
+    const afterFirst = api.calls.length;
+
+    // 二次 error（同一会话已结算，historyId 已清空）
+    expect(service.handleError()).toEqual({ type: 'failed', track: t1 });
+    expect(api.calls).toHaveLength(afterFirst);
+    expect(el.paused).toBe(true);
+  });
+});

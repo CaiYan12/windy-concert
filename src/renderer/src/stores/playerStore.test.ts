@@ -8,6 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TrackRow } from '../../../shared/types';
+import { useI18nStore } from '../i18n';
 import { buildAudioSrc, createAudioEngine } from '../player/audioEngine';
 import { PlayQueue } from '../player/queue';
 import {
@@ -18,6 +19,7 @@ import {
   type PlaybackApiHarness,
 } from '../player/playerStubs';
 import { POSITION_THROTTLE_MS, createPlayerStore } from './playerStore';
+import { useToastStore } from './toastStore';
 
 const t1 = makeTrack('t1', { filePath: 'D:\\Music\\one.flac', duration: 100 });
 const t2 = makeTrack('t2', { filePath: 'D:\\Music\\two.flac', duration: 200 });
@@ -365,5 +367,50 @@ describe('stop（计划：playing=false、position 归零，队列保留）', ()
     expect(s.position).toBe(0);
     expect(el.paused).toBe(true);
     expect(api.calls[1]).toMatchObject({ kind: 'updateOutcome', completed: false, playedDuration: 15 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T6.0② audio error 链（store 侧）——error 事件 → 结算 + playing=false + toast + 不跳下一首
+// ---------------------------------------------------------------------------
+describe('T6.0 audio error 链（store 订阅 → service.handleError → playing=false + toast）', () => {
+  it('emit(error)：结算 completed:false/playedDuration:0；playing=false；不跳下一首；toast 用 player.playFailed；无 recordPlay 重发', async () => {
+    const { store, api, el, queue } = setup([t1, t2]);
+    // i18n 哨兵：断言 toast 文案确实取自 player.playFailed 键（资源未加载时 t 回退键名，此处显式装表）
+    useI18nStore.setState({ messages: { 'player.playFailed': '«player.playFailed»' }, loaded: true });
+    const showToast = vi.spyOn(useToastStore.getState(), 'showToast').mockImplementation(() => {});
+
+    store.getState().loadContext([t1, t2], 0);
+    await microflush(); // recordPlay(t1) → historyId=100
+    expect(store.getState().playing).toBe(true);
+    const before = api.calls.length;
+
+    el.emit('error'); // 模拟 <audio> error 事件（解码失败/取流失效）
+    await microflush();
+
+    const s = store.getState();
+    expect(s.playing).toBe(false); // 乐观置位回退
+    expect(s.currentTrack?.id).toBe('t1'); // 不自动跳下一首（坏文件连跳风暴防护）
+    expect(queue.current).toBe('t1');
+
+    const outcomes = api.calls.slice(before).filter((c) => c.kind === 'updateOutcome');
+    expect(outcomes).toEqual([
+      { kind: 'updateOutcome', historyId: 100, playedDuration: 0, completed: false },
+    ]);
+    expect(api.calls.slice(before).some((c) => c.kind === 'recordPlay')).toBe(false); // 不回冲 playCount
+
+    expect(showToast).toHaveBeenCalledTimes(1);
+    expect(showToast).toHaveBeenCalledWith('«player.playFailed»');
+  });
+
+  it('无在播会话时 emit(error)：play=stopped 分支，零结算零 toast（不误报）', () => {
+    const { store, api, el } = setup([]);
+    const showToast = vi.spyOn(useToastStore.getState(), 'showToast').mockImplementation(() => {});
+
+    el.emit('error'); // 无会话（currentTrackId=null）时的 error
+
+    expect(store.getState().playing).toBe(false);
+    expect(showToast).not.toHaveBeenCalled();
+    expect(api.calls).toHaveLength(0);
   });
 });

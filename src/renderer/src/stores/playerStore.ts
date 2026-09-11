@@ -15,7 +15,19 @@
 //     zustand 状态。ended 事件由 store 订阅并调 service.handleEnded()，按返回的 AdvanceResult
 //     同步状态——service 不反向依赖 store（依赖单向：store → service → audio/queue/api）。
 //   · 音量/静音恢复：ensureVolumeRestored() 幂等读 settings:get（Settings.volume/muted 键
-//     T3.4 key 清单已存在，无需扩展——留痕）；App 挂载时调用（T5.4+ 接线）。
+//     T3.4 key 清单已存在，无需扩展——留痕）；**T6.0 接线**：AppShell 挂载 effect 调一次
+//     （同 Sidebar ensureStatsLoaded 形态；App.tsx 按 T4.1 定位为纯路由出口、不持业务副作用，
+//     故落 AppShell 壳层，留痕）。幂等守卫在 await 前先置位 volumeRestored=true，StrictMode
+//     开发态 effect 双调用不会重复请求 settings:get。
+//   · T6.0 audio error 链：订阅 audio 的 'error' 事件（此前 AudioEventType 已声明、渲染层零订阅
+//     ——播放损坏/解码失败文件时 recordPlay 已 fire（假计费）+ playing 乐观置位无回退 + 进度冻结，
+//     仅手动 next 可解）。处理：service.handleError() 结算当前会话（completed:0 / playedDuration:0）
+//     并暂停 → 本层依 failed 结果置 playing=false（不推进队列、不自动跳下一首）→ 经
+//     toastStore.showToast 提示「无法播放该文件」（player.playFailed）。**取舍留痕**：store 直接
+//     引 toastStore 为单向依赖（playerStore → toastStore，后者无依赖叶子，无环）——toastStore 的
+//     「与播放域解耦」指不复用播放状态，不禁止单向通知；且页面层（Songs/AlbumDetail/ArtistDetail）
+//     已有 useToastStore.getState().showToast(t(...)) 先例，形态一致。i18n 用模块级 t()（读当前
+//     资源快照，错误发生在资源就绪后）。
 //   · 层间约束（计划 679 行）：player/** 不得 import library/playlists 数据模块——曲目数据
 //     全部经参数注入（loadContext(tracks) 由页面传入），本文件只依赖 shared 类型。
 //   · T5.5 平行插队列表（用户裁定 2026-09-11）：queue.ts §3.5b 逐字冻结，order 中无法区分
@@ -34,6 +46,7 @@
 import { useSyncExternalStore } from 'react';
 import { create, type StoreApi } from 'zustand';
 import type { Settings, TrackRow } from '../../../shared/types';
+import { t } from '../i18n';
 import { createAudioEngine, type AudioEngine } from '../player/audioEngine';
 import {
   createPlaybackService,
@@ -41,6 +54,7 @@ import {
   type PlaybackApi,
 } from '../player/playbackService';
 import { PlayQueue, type RepeatMode } from '../player/queue';
+import { useToastStore } from './toastStore';
 
 /** 本 store 用到的 api 能力面（结构性类型，同 libraryStore 留痕）。 */
 export type PlayerApi = PlaybackApi;
@@ -172,6 +186,10 @@ function applyAdvance(store: StoreApi<PlayerState>, result: AdvanceResult): void
     store.setState({ currentTrack: result.track, playing: true, position: 0, duration: 0 });
   } else if (result.type === 'restarted') {
     store.setState({ playing: true, position: 0 });
+  } else if (result.type === 'failed') {
+    // T6.0：播放失败——停播但保留 currentTrack 与 position（进度冻结语义），仅置 playing=false。
+    // 不推进队列、不动 queueView.current（队列保留，交用户手动 next）。
+    store.setState({ playing: false });
   } else {
     // stopped：队列播完——playing=false、position 归零，队列与 currentTrack 保留。
     store.setState({ playing: false, position: 0 });
@@ -375,6 +393,16 @@ export function createPlayerStore(deps: CreatePlayerStoreDeps = {}): StoreApi<Pl
     }),
     audio.on('ended', () => {
       advanceWithView(service.handleEnded());
+    }),
+    audio.on('error', () => {
+      // T6.0 audio error 链：解码失败/取流失效 → service 结算会话（completed:0/playedDuration:0）
+      // 并暂停 → failed 结果置 playing=false（不推进队列）→ toast 提示。error 事件无载荷可用
+      // （AudioElementLike 的 listener 签名 () => void，也不读 MediaError 细节——文案统一）。
+      const result = service.handleError();
+      advanceWithView(result);
+      if (result.type === 'failed') {
+        useToastStore.getState().showToast(t('player.playFailed'));
+      }
     }),
   ];
   // 订阅与 store 同生命周期（工厂私有实例，无全局泄漏）；句柄保留以防后续需要（如 dispose）。

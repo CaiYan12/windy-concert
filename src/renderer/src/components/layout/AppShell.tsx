@@ -1,6 +1,7 @@
-import { useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useI18n } from '../../i18n'
+import { usePlayerStore } from '../../stores/playerStore'
 import { PlayerBar } from './PlayerBar'
 import { QueuePanel } from './QueuePanel'
 import { Sidebar } from './Sidebar'
@@ -22,6 +23,9 @@ import { Topbar } from './Topbar'
  *   落地页 Songs。任何非 Songs 页激活「跳到主要内容」都会被弹回 Songs。
  *   修法：保留 href 语义（可访问性 / 无 JS 降级），但 onClick preventDefault 阻断 hash 变更，
  *   改为把焦点程序化移交给 <main id="main-content" tabIndex={-1}>（tabIndex=-1 使其可编程聚焦）。
+ *
+ * T6.0（Phase 6 前置小包）：① 挂载 effect 调 ensureVolumeRestored（音量/静音持久化读回）；
+ *   ③ 队列面板关闭后焦点回落触发按钮（计划 903 行验收项）。落位与取舍见组件体内注释。
  */
 export function AppShell(): ReactElement {
   const { t } = useI18n()
@@ -31,6 +35,26 @@ export function AppShell(): ReactElement {
   // （mockup.css:1682-1684），shell.css 逐字沿用——任务原文「类挂 .queue-panel」与设计稿
   // 冲突处从设计稿，留痕。
   const [queueOpen, setQueueOpen] = useState(false)
+
+  // T6.0③ 焦点回落：记录队列钮触发元素，面板经头部 x 关闭后把焦点还给它（计划 903 行验收项）。
+  // 取舍：入参触发元素而非 AppShell 侧查 DOM/ref 透传——PlayerBar 的 onClick 天然持有
+  // e.currentTarget（最小改动、零 DOM 查询、对按钮节点身份无假设）。
+  const queueTriggerRef = useRef<HTMLElement | null>(null)
+
+  // T6.0① 启动恢复音量/静音：AppShell 挂载 effect 调一次（同 Sidebar ensureStatsLoaded 形态）。
+  // 落位取舍：App.tsx 按 T4.1 定位为纯路由出口（不持业务副作用），AppShell 为承载 PlayerBar/
+  // QueuePanel 的播放域壳层且全生命周期只挂载一次；ensureVolumeRestored 自身幂等（await 前置位），
+  // StrictMode 开发态 effect 双调用不重复请求 settings:get。
+  useEffect(() => {
+    void usePlayerStore.getState().ensureVolumeRestored()
+  }, [])
+
+  /** 关闭队列面板：置关 + 焦点回落触发按钮（无触发记录时 no-op，如程序化初次关闭）。 */
+  const closeQueue = (): void => {
+    setQueueOpen(false)
+    queueTriggerRef.current?.focus()
+  }
+
   return (
     <div className={`app-shell${queueOpen ? ' queue-open' : ''}`}>
       <a
@@ -49,9 +73,14 @@ export function AppShell(): ReactElement {
         <main id="main-content" className="main-content" tabIndex={-1}>
           <Outlet />
         </main>
-        <PlayerBar onToggleQueue={() => setQueueOpen((o) => !o)} />
+        <PlayerBar
+          onToggleQueue={(trigger) => {
+            queueTriggerRef.current = trigger // T6.0③：记录触发元素供关闭时回落焦点
+            setQueueOpen((o) => !o)
+          }}
+        />
       </section>
-      <QueuePanel open={queueOpen} onClose={() => setQueueOpen(false)} />
+      <QueuePanel open={queueOpen} onClose={closeQueue} />
     </div>
   )
 }

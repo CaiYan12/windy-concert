@@ -27,8 +27,12 @@ import type { RepeatMode } from '../../player/queue'
  *   不回滚（T5.4 上报取舍）。
  */
 export interface PlayerBarProps {
-  /** 队列面板开关回调（T5.5 消费）。未提供时队列按钮启用但点击为空操作（占位期）。 */
-  onToggleQueue?: () => void
+  /**
+   * 队列面板开关回调（T5.5 消费）。未提供时队列按钮启用但点击为空操作（占位期）。
+   * T6.0：入参为触发按钮元素本身（e.currentTarget），供 AppShell 在面板关闭后把焦点回落到
+   * 队列钮（计划 903 行验收项：关闭 QueuePanel 后焦点回落触发按钮）。
+   */
+  onToggleQueue?: (trigger: HTMLElement) => void
 }
 
 /** 秒数 → m:ss（缺失/非法值回退 0:00，不伪造）。 */
@@ -293,7 +297,7 @@ export function PlayerBar({ onToggleQueue }: PlayerBarProps = {}): ReactElement 
           className="icon-button"
           type="button"
           aria-label={t('queue.open')}
-          onClick={() => onToggleQueue?.()}
+          onClick={(e) => onToggleQueue?.(e.currentTarget)}
           disabled={!hasTrack}
         >
           <Icon name="list-music" />

@@ -146,6 +146,7 @@
   "player.repeat": "列表循环",
   "player.repeatOne": "单曲循环",
   "player.unsupportedFormat": "M0.1 暂不支持此格式播放",
+  "player.playFailed": "无法播放该文件",
   "queue.title": "播放队列",
   "queue.open": "打开播放队列",
   "queue.close": "关闭播放队列",

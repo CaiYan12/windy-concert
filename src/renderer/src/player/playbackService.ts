@@ -26,6 +26,14 @@
 //     （测试 vi.useFakeTimers 直接驱动全局 setTimeout 亦可）。muted 即时持久化（计划只约定
 //     volume 的 debounce 持久化；muted 是离散开关且 Settings.muted 键 T3.4 已存在——
 //     不持久化则重启后静音态丢失，属实现取舍留痕）。
+//   · T6.0 audio error 链（跨任务系统性缺口，用户备案裁定 2026-09-11）：handleError() =
+//     结算当前会话 settleOutcome(0, false)（即 updatePlayOutcome(historyId, 0, false)）后暂停
+//     audio，返回 { type: 'failed', track }。**不回冲 playCount**——CONTEXT.md「播放过一次 =
+//     loadTrack 即计」锚在 loadTrack，error 不走递减 IPC（playCount 只加不减）；**不自动跳
+//     下一首**（避免坏文件连跳风暴，交用户手动 next）。audio error 事件的订阅点仍留在
+//     playerStore（与 ended 同形：store 订阅 → 调 service.handleError() → 依返回结果同步状态），
+//     保持「store → service → audio」单向依赖，service 不反向依赖 store（差于任务原文
+//     「service 订阅」的字面写法，为架构一致性取舍，留痕）。
 //   · api 经 getApi() 惰性注入（同 libraryStore 惰性 getApi 模式）：单例创建时机早于首次 IPC，
 //     测试可逐用例换桩；api 缺失（preload 未就绪）时计费静默跳过并 warn，不阻塞播放。
 import type { Settings, TrackRow } from '../../../shared/types';
@@ -59,7 +67,8 @@ export interface PlaybackTimers {
 export type AdvanceResult =
   | { type: 'started'; track: TrackRow } // 换源并起播新曲（已 recordPlay）
   | { type: 'restarted' } // 同曲重启（repeat-one ended / 队首 previous），无新计费
-  | { type: 'stopped' }; // 队列播完（null）或解析失败，播放停止
+  | { type: 'stopped' } // 队列播完（null）或解析失败，播放停止
+  | { type: 'failed'; track: TrackRow }; // T6.0：audio error（解码/取流失效），会话已结算
 
 export interface PlaybackService {
   /** 当前会话曲目 id（null = 无会话）。 */
@@ -71,6 +80,11 @@ export interface PlaybackService {
   playTrack(track: TrackRow, manual?: boolean): void;
   /** audio ended 链（§3.5c onended）：completed 结算 → queue.next() → 推进/停止。 */
   handleEnded(): AdvanceResult;
+  /**
+   * T6.0 audio error 链：结算当前会话（completed:0 / playedDuration:0）→ 暂停 audio →
+   * 返回 failed（无会话时返回 stopped）。不回冲 playCount、不推进队列（口径见文件头）。
+   */
+  handleError(): AdvanceResult;
   /** 手动下一首：completed:0 前置结算 → queue.next()。 */
   next(): AdvanceResult;
   /** 手动上一首：换曲则 completed:0 前置结算；队首重启同曲不结算（留痕见文件头）。 */
@@ -209,6 +223,17 @@ export function createPlaybackService(deps: CreatePlaybackServiceDeps): Playback
     handleEnded() {
       // §3.5c onended：completed 结算，playedDuration 用曲目时长（audio.duration）。
       return advance({ playedDuration: audio.duration, completed: true });
+    },
+
+    handleError() {
+      // T6.0：播放出错（解码失败 / 取流失效）——按「未播成」口径结算：playedDuration:0、
+      // completed:false。settleOutcome 幂等（historyId 即刻清空），重复 error 不会重复结算。
+      settleOutcome(0, false);
+      audio.pause();
+      // 不推进队列（不 queue.next()）：坏文件连跳风暴防护，交用户手动 next。
+      const track = currentTrackId === null ? null : resolve(currentTrackId);
+      if (!track) return { type: 'stopped' };
+      return { type: 'failed', track };
     },
 
     next() {
