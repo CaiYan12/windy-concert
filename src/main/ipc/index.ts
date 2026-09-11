@@ -195,6 +195,13 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
     });
   });
 
+  // T4.11：曲库三类实体总数（只读聚合，零 payload）——页头真实总数 / 侧栏 nav-badge 数据源。
+  register(IPC.CHANNELS.LIBRARY_GET_STATS, () => ({
+    tracks: trackRepo.count(),
+    albums: albumRepo.count(),
+    artists: artistRepo.count(),
+  }));
+
   register(IPC.CHANNELS.LIBRARY_GET_TRACK, (_e, payload) => {
     const p = payload as IpcPayloads['library:getTrack'];
     if (typeof p?.id !== 'string') throw new Error('library:getTrack 需要字符串 id');

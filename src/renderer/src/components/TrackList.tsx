@@ -63,14 +63,24 @@ interface TrackHeaderRowProps {
    * 自相矛盾暗示（数据未按新序刷新）。排序按钮仍可点（触发消费方重试）。
    */
   sortDegraded?: boolean
+  /**
+   * T4.11：排序开关（默认 true，向后兼容）。false = 表头为纯文本列名——可排序列不渲染
+   * .sort-button / chevron，且全部列不输出 aria-sort（含 none）。设计稿依据：AlbumDetail /
+   * ArtistDetail 表头 grep sort-button 零命中（Songs.html 有）——详情页曲目表为固定序
+   * （album: disc→trackNumber / artist: 专辑归组序），表头不承担排序语义，顺带消除
+   * 「aria-sort="ascending" 但用户无法改序」的失真。
+   */
+  sortable?: boolean
 }
 
-/** 表头行：仅在可排序列渲染 .sort-button；当前排序列显示 12px chevron（icons.md）。 */
+/** 表头行：sortable 时可排序列渲染 .sort-button、当前列显示 12px chevron（icons.md）；
+ *  不可排序时全部列渲染纯文本列名（无 button / aria-sort / chevron）。 */
 export function TrackHeaderRow({
   sortBy,
   order,
   onSortChange,
-  sortDegraded = false
+  sortDegraded = false,
+  sortable = true
 }: TrackHeaderRowProps): ReactElement {
   const { t } = useI18n()
   return (
@@ -79,9 +89,11 @@ export function TrackHeaderRow({
       role="row"
     >
       {TRACK_COLUMNS.map((col) => {
-        const isSorted = col.sortKey !== undefined && col.sortKey === sortBy
-        const ariaSort =
-          col.sortKey === undefined
+        const isSorted = sortable && col.sortKey !== undefined && col.sortKey === sortBy
+        // 不可排序表头不输出 aria-sort（含 none）——排序语义整体缺席，而非「当前列无序」。
+        const ariaSort = !sortable
+          ? undefined
+          : col.sortKey === undefined
             ? undefined
             : isSorted
               ? order === 'asc'
@@ -95,7 +107,19 @@ export function TrackHeaderRow({
             role="columnheader"
             aria-sort={ariaSort}
           >
-            {col.sortKey !== undefined ? (
+            {!sortable ? (
+              // 纯文本列名：保留 sr-only / mark 分支语义（序号列、状态列等无可见列名）。
+              col.srOnly ? (
+                <span className="sr-only">{t(col.labelKey)}</span>
+              ) : col.mark ? (
+                <>
+                  <span aria-hidden="true">{col.mark}</span>
+                  <span className="sr-only">{t(col.labelKey)}</span>
+                </>
+              ) : (
+                t(col.labelKey)
+              )
+            ) : col.sortKey !== undefined ? (
               <button
                 className="sort-button"
                 type="button"
@@ -138,6 +162,12 @@ export interface TrackListProps {
   order?: SortOrder
   /** 排序表头点击 → 消费方接线到 libraryStore.setSort（内部自动重取）。 */
   onSortChange?: (sortBy: SortKey, order: SortOrder) => void
+  /**
+   * T4.11：排序开关（默认 true）。false → 表头纯文本列名（无 sort-button/aria-sort/chevron），
+   * sortBy/order/onSortChange 被忽略。AlbumDetail/ArtistDetail 传 false（设计稿详情页表头
+   * 无排序按钮，曲目为固定序）。
+   */
+  sortable?: boolean
   /** 正在播放的曲目 id（本任务无 playerStore，缺省不渲染任何播放行）。 */
   playingTrackId?: string
   /** 滚动区高度（number=px / string=CSS 长度）；缺省撑满父容器。 */
@@ -160,6 +190,7 @@ export function TrackList({
   sortBy = 'title',
   order = 'asc',
   onSortChange,
+  sortable = true,
   playingTrackId,
   height,
   className,
@@ -216,10 +247,11 @@ export function TrackList({
           order={order}
           onSortChange={onSortChange}
           sortDegraded={sortDegraded}
+          sortable={sortable}
         />
       )
     }),
-    [sortBy, order, onSortChange, sortDegraded]
+    [sortBy, order, onSortChange, sortDegraded, sortable]
   )
 
   const rootStyle =
@@ -257,6 +289,7 @@ export function TrackList({
               order={order}
               onSortChange={onSortChange}
               sortDegraded={sortDegraded}
+              sortable={sortable}
             />
             <div className="track-list-state">
               {error ? (

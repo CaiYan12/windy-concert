@@ -24,6 +24,8 @@ export interface ArtistDetail extends ArtistCard {
 
 export interface ArtistRepo {
   upsertArtist(name: string): number;
+  /** T4.11：艺术家总数轻量查询（SELECT COUNT(*)）。 */
+  count(): number;
   listArtists(): ArtistCard[];
   getArtistOverview(id: number): {
     artist: ArtistDetail | null;
@@ -133,6 +135,13 @@ export function createArtistRepo(db: Database): ArtistRepo {
     return rows.map(mapArtistCard);
   }
 
+  // T4.11：总数聚合（固定 arity，工厂内 prepare 一次）。
+  const stmtCount = db.prepare(`SELECT COUNT(*) AS n FROM artists`);
+
+  function count(): number {
+    return (stmtCount.get() as { n: number }).n;
+  }
+
   function getArtistOverview(id: number): {
     artist: ArtistDetail | null;
     albums: AlbumCard[];
@@ -161,6 +170,7 @@ export function createArtistRepo(db: Database): ArtistRepo {
 
   return {
     upsertArtist,
+    count,
     listArtists,
     getArtistOverview,
     search,

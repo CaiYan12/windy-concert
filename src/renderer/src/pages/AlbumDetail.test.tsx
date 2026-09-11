@@ -106,6 +106,28 @@ describe('AlbumDetail 页', () => {
     unmount()
   })
 
+  // T4.11：详情页表头为纯文本列名（设计稿 AlbumDetail.html grep sort-button 零命中）——
+  // 固定序曲目表不承担排序语义，aria-sort 整体缺席（消除「ascending 但无法改序」的失真）。
+  it('数据态表头 sortable=false → 无 sort-button、无 aria-sort', async () => {
+    browseApiData.album = {
+      id: 7,
+      title: '十一月的萧邦',
+      artistName: '周杰伦',
+      year: 2005,
+      coverId: 'cv-1',
+      trackCount: 2,
+      genre: 'Pop',
+      discCount: 1
+    }
+    browseApiData.tracks = [makeTrack('a', '夜曲'), makeTrack('b', '发如雪')]
+    const { container, unmount } = mountPage(renderDetail())
+    await flushBrowse()
+    expect(container.querySelector('.track-row--head')).not.toBeNull()
+    expect(container.querySelector('.sort-button')).toBeNull()
+    expect(container.querySelector('[aria-sort]')).toBeNull()
+    unmount()
+  })
+
   it('错误态 → songs.error 哨兵 + 具体错误', async () => {
     browseApiData.failAlbum = true
     const { container, unmount } = mountPage(renderDetail())

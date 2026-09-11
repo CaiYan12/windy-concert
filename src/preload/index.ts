@@ -30,6 +30,7 @@ const api = {
     rescanAll: () => invoke(IPC.CHANNELS.LIBRARY_RESCAN_ALL),
     listSongs: (params: IpcPayloads['library:listSongs']) =>
       invoke(IPC.CHANNELS.LIBRARY_LIST_SONGS, params),
+    getStats: () => invoke(IPC.CHANNELS.LIBRARY_GET_STATS),
     getTrack: (id: string) => invoke(IPC.CHANNELS.LIBRARY_GET_TRACK, { id }),
     listAlbums: () => invoke(IPC.CHANNELS.LIBRARY_LIST_ALBUMS),
     getAlbum: (id: number) => invoke(IPC.CHANNELS.LIBRARY_GET_ALBUM, { id }),

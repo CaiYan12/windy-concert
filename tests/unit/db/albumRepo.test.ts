@@ -205,4 +205,17 @@ describe('albumRepo', () => {
     expect(aYear.year).toBe(2000);
     expect(aYear.trackCount).toBe(1);
   });
+
+  // T4.11：library:getStats 的 repo 层数据源（轻量 COUNT）。
+  it('count → 专辑总数轻量查询（空库 0，upsert 合并后计唯一行数）', () => {
+    current = setup();
+    const { albumRepo, artistRepo } = current;
+    expect(albumRepo.count()).toBe(0);
+    const a1 = artistRepo.upsertArtist('Artist A');
+    albumRepo.upsertAlbum('Album A', a1);
+    albumRepo.upsertAlbum('Album B', a1);
+    // 同对 (title, artistId) 再次 upsert → 合并，不重复计数。
+    albumRepo.upsertAlbum('Album A', a1);
+    expect(albumRepo.count()).toBe(2);
+  });
 });

@@ -37,6 +37,7 @@ export const IPC = {
     SCAN_PROGRESS: 'scan:progress',
     COVERS_READY: 'covers:ready',
     LIBRARY_LIST_SONGS: 'library:listSongs',
+    LIBRARY_GET_STATS: 'library:getStats',
     LIBRARY_GET_TRACK: 'library:getTrack',
     LIBRARY_LIST_ALBUMS: 'library:listAlbums',
     LIBRARY_GET_ALBUM: 'library:getAlbum',
@@ -77,6 +78,7 @@ export interface IpcPayloads {
   'library:scan': void;
   'library:rescanAll': void;
   'library:listSongs': { sortBy: SortKey; order?: SortOrder; offset?: number; limit?: number };
+  'library:getStats': void;
   'library:getTrack': { id: string };
   'library:listAlbums': void;
   'library:getAlbum': { id: number };
@@ -109,6 +111,10 @@ export interface IpcReturns {
   'library:scan': void;
   'library:rescanAll': void;
   'library:listSongs': TrackRow[];
+  /** T4.11：曲库三类实体总数（页头真实总数 / 侧栏 nav-badge 数据源）。
+   *  形状自定留痕：轻量 COUNT(*) 聚合（repo.count），不含任何行数据；additive 通道，
+   *  listSongs 形状冻结不受影响。含全部状态曲目（与 listSongs 无 status 过滤同口径）。 */
+  'library:getStats': { tracks: number; albums: number; artists: number };
   'library:getTrack': TrackRow | null;
   'library:listAlbums': AlbumCard[];
   'library:getAlbum': { album: AlbumDetail | null; tracks: TrackRow[] };

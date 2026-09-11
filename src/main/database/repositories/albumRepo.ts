@@ -28,6 +28,8 @@ export interface AlbumDetail {
 export interface AlbumRepo {
   upsertAlbum(title: string, artistId: number): number;
   recountStats(): void;
+  /** T4.11：专辑总数轻量查询（SELECT COUNT(*)）。 */
+  count(): number;
   listAlbums(): AlbumCard[];
   getAlbumWithTracks(id: number): { album: AlbumDetail | null; tracks: TrackRow[] };
   // T3.1：专辑搜索——title LIKE（§3.5d，数量级有限不用 FTS）；LIMIT 10。
@@ -140,6 +142,13 @@ export function createAlbumRepo(db: Database): AlbumRepo {
     return rows.map(mapAlbumCard);
   }
 
+  // T4.11：总数聚合（固定 arity，工厂内 prepare 一次）。
+  const stmtCount = db.prepare(`SELECT COUNT(*) AS n FROM albums`);
+
+  function count(): number {
+    return (stmtCount.get() as { n: number }).n;
+  }
+
   function getAlbumWithTracks(id: number): { album: AlbumDetail | null; tracks: TrackRow[] } {
     const albumRow = stmtGetAlbum.get(id) as Record<string, unknown> | undefined;
     const album = albumRow ? mapAlbumDetail(albumRow) : null;
@@ -156,6 +165,7 @@ export function createAlbumRepo(db: Database): AlbumRepo {
   return {
     upsertAlbum,
     recountStats,
+    count,
     listAlbums,
     getAlbumWithTracks,
     search,

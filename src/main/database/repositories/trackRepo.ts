@@ -168,6 +168,9 @@ const IN_BATCH = 500;
 export interface TrackRepo {
   createMany(tracks: TrackInsert[]): void;
   listSongs(params: ListSongsParams): TrackRow[];
+  /** T4.11：曲目总数轻量查询（SELECT COUNT(*)，勿用 listAll 后取 length）。
+   *  含全部状态行（与 listSongs 无 status 过滤同口径）。 */
+  count(): number;
   findById(id: string): TrackRow | null;
   // T2.3 新增：全量身份对账行（§3.5a 阶段 B 主进程对账数据源；SQL 收口在 repo，留痕）。
   listIdentityAll(): TrackIdentity[];
@@ -283,6 +286,9 @@ export function createTrackRepo(db: Database): TrackRepo {
     return new Array(Math.max(n, 1)).fill('?').join(', ');
   }
 
+  // T4.11：总数聚合（固定 arity，工厂内 prepare 一次）。
+  const stmtCount = db.prepare(`SELECT COUNT(*) AS n FROM tracks`);
+
   // -------------------------------------------------------------------------
   // 方法实现
   // -------------------------------------------------------------------------
@@ -323,6 +329,10 @@ export function createTrackRepo(db: Database): TrackRepo {
       }
     });
     insertTx(tracks);
+  }
+
+  function count(): number {
+    return (stmtCount.get() as { n: number }).n;
   }
 
   function listSongs(params: ListSongsParams): TrackRow[] {
@@ -541,6 +551,7 @@ export function createTrackRepo(db: Database): TrackRepo {
 
   return {
     createMany,
+    count,
     listSongs,
     findById,
     listIdentityAll,

@@ -139,8 +139,10 @@ export function ArtistDetail(): ReactElement {
       </div>
       <TrackList
         songs={tracks}
-        sortBy="title"
-        order="asc"
+        // T4.11：详情页表头为纯文本列名（设计稿 ArtistDetail.html 无 sort-button）——
+        // 曲目按专辑归组后 disc→track 固定序展示，不承担排序语义；此前传的 sortBy/order
+        // 仅驱动表头 aria-sort 失真（用户无法改序），随 sortable 开关一并移除。
+        sortable={false}
         className="detail-tracklist"
         onActivate={(track) => playContext(tracks, tracks.indexOf(track))}
       />

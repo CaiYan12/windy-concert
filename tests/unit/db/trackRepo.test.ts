@@ -384,4 +384,20 @@ describe('trackRepo', () => {
     expect(statusOf('mk-drop2')).toBe('missing'); // 在 except 外
   });
 
+  // T4.11：library:getStats 的 repo 层数据源（轻量 COUNT，勿用 listAll 后取 length）。
+  it('count → 曲目总数轻量查询（空库 0，插入后与行数一致，含 missing 状态行）', () => {
+    current = setup();
+    const { repo } = current;
+    expect(repo.count()).toBe(0);
+    repo.createMany([
+      track({ id: 'c1', title: 'C1' }),
+      track({ id: 'c2', title: 'C2' }),
+      track({ id: 'c3', title: 'C3' }),
+    ]);
+    expect(repo.count()).toBe(3);
+    // missing 状态行也计入（与 listSongs 无 status 过滤同口径）。
+    repo.setStatus(['c3'], 'missing');
+    expect(repo.count()).toBe(3);
+  });
+
 });

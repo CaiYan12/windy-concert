@@ -1,7 +1,8 @@
-import type { ReactElement } from 'react'
+import { useEffect, type ReactElement } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 import { NAV_ITEMS } from '../../routes'
+import { ensureStatsLoaded, formatCount, useStats } from '../../stores/statsStore'
 import { Icon } from '../Icon'
 
 /**
@@ -11,22 +12,27 @@ import { Icon } from '../Icon'
  * （T4.1 评审 I1：此前 NAV_ITEMS 与 ROUTE_DEFS 二处维护、7 组 labelKey/titleKey 完全重复，无测试守护。）
  */
 
-export interface SidebarProps {
-  /**
-   * 歌曲总数徽标（.nav-badge）。
-   * T4.1 无数据源，未传入时**不渲染**徽标节点——避免把设计稿样本值（30,000）写成假数据；
-   * T4.2 接入 libraryStore 后由 AppShell 传入真实 count，届时徽标自然出现。
-   */
-  songsCount?: number
-}
-
 /**
- * Sidebar —— 侧栏（T4.1）。逐元素对照 mockups/Songs.html:13-42 与 mockup.css:138-304。
- * 活跃态：NavLink 自动输出 aria-current="page"，样式由 .nav-link[aria-current="page"] 驱动
- * （mockup.css:217-243，含 ::before 左侧 3px --accent 指示条，无底色高亮）。
+ * Sidebar —— 侧栏（T4.1 / T4.11 接线 nav-badge）。逐元素对照 mockups/Songs.html:13-42 与
+ * mockup.css:138-304。活跃态：NavLink 自动输出 aria-current="page"，样式由
+ * .nav-link[aria-current="page"] 驱动（mockup.css:217-243，含 ::before 左侧 3px --accent 指示条，
+ * 无底色高亮）。
+ *
+ * nav-badge（T4.11）：设计稿核实（mockups/*.html 全量 grep `nav-badge`）——**仅「歌曲」一项有
+ * 徽标**，显示曲目总数（设计稿样本 30,000，千位分隔）；专辑/艺术家等导航项无徽标位，故只实现
+ * Songs 一处。数据经 statsStore 取 library:getStats（AppShell 不再中转——本组件自取，模式与
+ * 各浏览页 useBrowseData 同风格；T4.1 立案时拟由 AppShell 传入 songsCount 的方案随 getStats
+ * 通道落地作废，songsCount prop 移除）。stats 未就绪/失败不渲染徽标节点（禁假数据，不留 0/空壳）。
  */
-export function Sidebar({ songsCount }: SidebarProps): ReactElement {
+export function Sidebar(): ReactElement {
   const { t } = useI18n()
+  const { stats } = useStats()
+
+  // 幂等首拉（scan done 自动刷新见 statsStore 模块级订阅）。
+  useEffect(() => {
+    ensureStatsLoaded()
+  }, [])
+
   return (
     <aside className="sidebar" aria-label={t('nav.ariaMain')}>
       <div className="brand-lockup">
@@ -48,8 +54,8 @@ export function Sidebar({ songsCount }: SidebarProps): ReactElement {
               <NavLink className="nav-link" to={item.to}>
                 <Icon name={item.icon} />
                 <span>{t(item.labelKey)}</span>
-                {item.to === '/songs' && songsCount !== undefined ? (
-                  <span className="nav-badge">{songsCount.toLocaleString('zh-CN')}</span>
+                {item.to === '/songs' && stats !== null ? (
+                  <span className="nav-badge">{formatCount(stats.tracks)}</span>
                 ) : null}
               </NavLink>
             </li>

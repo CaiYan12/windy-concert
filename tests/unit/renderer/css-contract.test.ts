@@ -38,7 +38,8 @@ const STYLE_FILES = [
   'src/renderer/src/styles/tracklist.css',
   'src/renderer/src/styles/cover.css',
   'src/renderer/src/styles/browse.css',
-  'src/renderer/src/styles/search.css'
+  'src/renderer/src/styles/search.css',
+  'src/renderer/src/styles/shell.css'
 ] as const;
 
 /** 去掉 CSS 注释（/* ... *\/），避免「注释里提到过这个选择器」造成假绿。 */
@@ -215,6 +216,12 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
   {
     selector: '.songs-pagination-button:disabled',
     guards: '翻页禁用态（首页禁上一页/末页禁下一页——禁假总数约束下唯一的边界反馈）；缺则越界不可见',
+    strict: true
+  },
+  // --- T4.11 侧栏 nav-badge（shell.css）语义关键类 ---
+  {
+    selector: '.nav-badge',
+    guards: '侧栏「歌曲」导航计数徽标（library:getStats 真实总数，右推布局 margin-left:auto）；缺则徽标降级为无样式文本',
     strict: true
   }
 ]

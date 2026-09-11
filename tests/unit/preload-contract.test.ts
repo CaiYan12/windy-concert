@@ -35,9 +35,13 @@ describe('window.api 契约类型锁（expectTypeOf）', () => {
     expect(true).toBe(true)
   })
 
-  it('library：listSongs / getTrack / search 代表签名', () => {
+  it('library：listSongs / getStats / getTrack / search 代表签名', () => {
     expectTypeOf<Api['library']['listSongs']>().toEqualTypeOf<
       (params: IpcPayloads['library:listSongs']) => Promise<TrackRow[]>
+    >()
+    // T4.11：getStats 只读聚合（零 payload，返回三类实体总数）。
+    expectTypeOf<Api['library']['getStats']>().toEqualTypeOf<
+      () => Promise<{ tracks: number; albums: number; artists: number }>
     >()
     expectTypeOf<Api['library']['getTrack']>().toEqualTypeOf<
       (id: string) => Promise<TrackRow | null>
@@ -109,6 +113,7 @@ describe('window.api 契约类型锁（expectTypeOf）', () => {
       | 'scan'
       | 'rescanAll'
       | 'listSongs'
+      | 'getStats'
       | 'getTrack'
       | 'listAlbums'
       | 'getAlbum'

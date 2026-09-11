@@ -140,4 +140,16 @@ describe('artistRepo', () => {
     expect(albums).toEqual([]);
     expect(tracks).toEqual([]);
   });
+
+  // T4.11：library:getStats 的 repo 层数据源（轻量 COUNT）。
+  it('count → 艺术家总数轻量查询（空库 0，同名 upsert 合并后计唯一行数）', () => {
+    current = setup();
+    const { artistRepo } = current;
+    expect(artistRepo.count()).toBe(0);
+    artistRepo.upsertArtist('Artist A');
+    artistRepo.upsertArtist('Artist B');
+    // 同名再次 upsert → 合并，不重复计数。
+    artistRepo.upsertArtist('Artist A');
+    expect(artistRepo.count()).toBe(2);
+  });
 });

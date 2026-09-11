@@ -391,6 +391,42 @@ describe('TrackHeaderRow', () => {
     expect(html).toContain('sr-only">«songs.column.index»')
     expect(html).toContain('sr-only">«songs.column.status»')
   })
+
+  // T4.11：sortable=false（详情页形态——设计稿 AlbumDetail/ArtistDetail 表头无 sort-button）。
+  it('sortable=false → 可排序列渲染纯文本列名（无 button/chevron），全部列无 aria-sort', () => {
+    const html = renderToStaticMarkup(<TrackHeaderRow sortBy="title" order="asc" sortable={false} />)
+    // 无排序按钮与方向指示。
+    expect(html).not.toContain('sort-button')
+    expect(html).not.toContain('chevron-up')
+    expect(html).not.toContain('chevron-down')
+    // aria-sort 整体缺席（含 none——排序语义不在，而非「当前列无序」）。
+    expect(html).not.toContain('aria-sort')
+    // 列名仍渲染（纯文本，哨兵 key）。
+    expect(html).toContain('«songs.column.title»')
+    expect(html).toContain('«songs.column.index»')
+    expect(html).toContain('«songs.column.status»')
+  })
+
+  it('sortable=false 时 sortBy/order 被忽略（即使与 sortBy 匹配也不出 chevron/aria-sort）', () => {
+    const html = renderToStaticMarkup(
+      <TrackHeaderRow sortBy="duration" order="desc" sortable={false} />
+    )
+    expect(html).not.toContain('aria-sort="descending"')
+    expect(html).not.toContain('chevron-down')
+    expect(html).not.toContain('sort-button')
+  })
+
+  it('TrackList sortable=false 透传表头（默认 true 不受影响）', () => {
+    // 默认：可排序列有 sort-button（既有行为回归锚）。
+    expect(renderToStaticMarkup(<TrackList songs={[]} />)).toContain('sort-button')
+    // sortable=false：整表（空态分支的表头同样生效）无排序按钮。
+    expect(renderToStaticMarkup(<TrackList songs={[]} sortable={false} />)).not.toContain(
+      'sort-button'
+    )
+    expect(renderToStaticMarkup(<TrackList songs={[]} sortable={false} />)).not.toContain(
+      'aria-sort'
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------

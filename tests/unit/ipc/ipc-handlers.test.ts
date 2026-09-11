@@ -271,6 +271,25 @@ describe('registerIpcHandlers', () => {
     expect(ctx.call<Array<unknown>>(IPC.CHANNELS.LIBRARY_LIST_ARTISTS).length).toBeGreaterThan(0);
   });
 
+  // T4.11：library:getStats —— 只读聚合（零 payload），返回三类实体总数（additive 通道，
+  // listSongs 形状冻结不受影响；口径 = 全部状态曲目，与 listSongs 无 status 过滤一致）。
+  it('library:getStats 空库 → 全 0；seedLibrary 后与实体行数一致', () => {
+    expect(ctx.call<{ tracks: number; albums: number; artists: number }>(
+      IPC.CHANNELS.LIBRARY_GET_STATS
+    )).toEqual({ tracks: 0, albums: 0, artists: 0 });
+
+    seedLibrary(); // 1 艺术家 / 1 专辑 / 3 曲目
+    expect(ctx.call<{ tracks: number; albums: number; artists: number }>(
+      IPC.CHANNELS.LIBRARY_GET_STATS
+    )).toEqual({ tracks: 3, albums: 1, artists: 1 });
+  });
+
+  it('library:getStats payload 非法值不影响结果（handler 零 payload 语义）', () => {
+    // channel 契约为 void payload；即便渲染端误传对象/字符串，聚合结果不受影响（防御留痕）。
+    seedLibrary();
+    expect(ctx.call<{ tracks: number }>(IPC.CHANNELS.LIBRARY_GET_STATS, { bogus: 1 }).tracks).toBe(3);
+  });
+
   it('library:getAlbum / getArtist 不存在 → album/artist 为 null', () => {
     const album = ctx.call<{ album: unknown }>(IPC.CHANNELS.LIBRARY_GET_ALBUM, { id: 99999 });
     expect(album.album).toBeNull();

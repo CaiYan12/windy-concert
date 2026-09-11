@@ -1,47 +1,68 @@
 import { useEffect, type ReactElement } from 'react'
+import type { SortKey } from '../../../shared/types'
 import { useI18n } from '../i18n'
 import { useLibrary } from '../stores/libraryStore'
+import { ensureStatsLoaded, formatCount, useStats } from '../stores/statsStore'
 import { TrackList } from '../components/TrackList'
 
 /**
- * Songs 页（T4.4）——用真实页面替换 PagePlaceholder 的 Songs 分支。
+ * Songs 页（T4.4 / T4.9 / T4.11）——用真实页面替换 PagePlaceholder 的 Songs 分支。
  *
  * 接线（沿用 T4.2 libraryStore 既有模式）：
  *   · useLibrary() 取列表 + 分页/排序参数；首屏经 refresh() 取数（setSort 内部自动 refresh）。
  *   · onSortChange 直接接 libraryStore.setSort（§3.7 七键排序白名单 → 自动重取）。
- *   · TrackList 纯展示，playingTrackId 当前无 playerStore 不注入（T5.6 接通）。
+ *   · TrackList 纯展示（Songs 页可排序，sortable 默认 true），playingTrackId 当前无 playerStore
+ *     不注入（T5.6 接通）。
  *
- * 页头（对照 mockups/Songs.html）：标题绑定真实字段，但**总数不渲染**——
- * library:listSongs 是服务端分页（默认 limit 50、clamp 上界 200），songs.length 是
- * 当前页长度而非总数（T4.2 已核查无 songsCount 通道），用页长冒充总数即回归假数据
- * （违反 T4.1「不渲染假数据」）。故只渲染「全部歌曲」标题，不附计数。计数通道（library:getStats
- * 或 listSongs 返回 {items,total}）待 Phase 4 后补，届时再补总数行（计划 T4.2 备注已留痕）。
+ * 页头（T4.11，对照 mockups/Songs.html:62-68 实测形态）：**h2 保持纯标题「全部歌曲」**，
+ * 真实总数在设计稿中位于页头副行 <p>（「30,000 首曲目 · 按标题排序」），不在标题内——
+ * 计数经 library:getStats（T4.11 新增只读聚合通道）经 statsStore 取，千位分隔（formatCount，
+ * 设计稿即「30,000」形态）；「按X排序」随当前 sortBy 动态插值（SORT_LABEL_KEYS 复用既有
+ * 列名/排序键文案）。加载失败/未就绪（stats === null）回退纯标题——不渲染 0 或 NaN 冒充总数
+ * （T4.1「禁假数据」延续；T4.4「不渲染总数」的限制由 getStats 通道解除，非放松）。
  *
- * 页脚翻页（T4.9，接 libraryStore.setPage）：设计稿 mockups/Songs.html 无分页区（grep
- * pagination/翻页零命中），最小形态自定——「‹（上一页）第 N 页（下一页）›」，按钮可见内容
- * 为箭头字形、语义名走 aria-label（i18n 键 songs.pagination.*）。硬约束「禁假总数」：
- *   · 不渲染「共 M 条 / 共 X 页」（总数通道缺失）；
- *   · 页码 N = offset / limit + 1；
- *   · 末页判定 = 当页行数 < limit 时禁用「下一页」；首页（offset=0）禁用「上一页」。
- * 渲染门槛：加载/错误态不渲染；首页空态（offset=0 且无行）不渲染。唯一放宽：offset>0 的
- * 「越界空页」（总数恰为 limit 整数倍时点下一页会落空）仍渲染控件——否则翻页 UI 随空页
- * 消失、空态文案「还没有歌曲」误导，用户失去「上一页」退路（功能性死路）。
+ * 页脚翻页（T4.9 / T4.11 根治）：按钮可见内容为箭头字形、语义名走 aria-label。
+ *   · 末页判定根治：total 就绪后用 `offset + limit >= total` 禁「下一页」，替换 T4.9 的
+ *     「当页行数 < limit」近似（该近似漏判「总数恰为 limit 整数倍」的末页）。
+ *   · total 未就绪（getStats 失败/未返回）时**回退旧行数近似**——翻页功能不因统计通道失效瘫痪。
+ *   · 页码呈现升级：「第 N 页 / 共 M 页」（M = ceil(total/limit)）；total 未就绪回退「第 N 页」。
+ *   · 保留 T4.9 越界空页兜底：offset>0 且 0 行仍渲染控件（total 与行数瞬态不一致时保「上一页」退路）。
+ * 渲染门槛：加载/错误态不渲染；首页空态（offset=0 且无行）不渲染。
  */
+
+/** 当前排序键 → 页头副行「按X排序」文案键（全部复用既有 i18n 键，无新增重复文案）。 */
+const SORT_LABEL_KEYS: Record<SortKey, string> = {
+  title: 'songs.column.title',
+  artist: 'songs.column.artist',
+  album: 'songs.column.album',
+  duration: 'songs.column.duration',
+  dateAdded: 'songs.sortBy.dateAdded',
+  year: 'songs.sortBy.year',
+  playCount: 'songs.sortBy.playCount'
+}
+
 export function Songs(): ReactElement {
   const { t } = useI18n()
   const library = useLibrary()
+  const { stats } = useStats()
 
   useEffect(() => {
     void library.refresh()
   }, [library.refresh])
 
+  // stats 拉取（幂等：多消费方首挂载共享一次；scan done 自动刷新见 statsStore）。
+  useEffect(() => {
+    ensureStatsLoaded()
+  }, [])
+
   const { offset, limit } = library.params
   const rowCount = library.songs.length
+  const total = stats?.tracks
   const canPrev = offset > 0
-  // 禁假总数：行数 < limit 即视为末页（可能漏判「总数恰为 limit 整数倍」的末页，
-  // 点下一页落空页——由上方越界空页放宽兜底退路）。
-  const canNext = rowCount >= limit
+  // 末页判定：total 就绪 → offset+limit >= total 禁下一页（根治）；未就绪 → 行数近似回退。
+  const canNext = total !== undefined ? offset + limit < total : rowCount >= limit
   const page = Math.floor(offset / limit) + 1
+  const totalPages = total !== undefined ? Math.max(1, Math.ceil(total / limit)) : null
   const showPagination =
     !library.loading && !library.error && (rowCount > 0 || offset > 0)
 
@@ -51,7 +72,19 @@ export function Songs(): ReactElement {
   return (
     <div className="page-wrap browse-page">
       <div className="page-head">
-        <h2>{t('songs.heading')}</h2>
+        <div>
+          <h2>{t('songs.heading')}</h2>
+          {/* 副行总数：仅 stats 就绪渲染（设计稿 mockups/Songs.html:66 的 <p> 形态）。
+              「按X排序」随 sortBy 动态插值——设计稿为静态「按标题排序」，动态化以保证排序切换后不失真。 */}
+          {stats !== null ? (
+            <p>
+              {t('songs.headingTotal', {
+                count: formatCount(stats.tracks),
+                sort: t(SORT_LABEL_KEYS[library.params.sortBy])
+              })}
+            </p>
+          ) : null}
+        </div>
       </div>
       <TrackList
         songs={library.songs}
@@ -72,7 +105,11 @@ export function Songs(): ReactElement {
           >
             ‹
           </button>
-          <span className="songs-pagination-page">{t('songs.pagination.page', { page })}</span>
+          <span className="songs-pagination-page">
+            {totalPages !== null
+              ? t('songs.pagination.pageTotal', { page, pages: totalPages })
+              : t('songs.pagination.page', { page })}
+          </span>
           <button
             type="button"
             className="songs-pagination-button"
