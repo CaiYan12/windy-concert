@@ -223,6 +223,48 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
     selector: '.nav-badge',
     guards: '侧栏「歌曲」导航计数徽标（library:getStats 真实总数，右推布局 margin-left:auto）；缺则徽标降级为无样式文本',
     strict: true
+  },
+  // --- T5.4 播放栏（shell.css）语义关键类 ---
+  {
+    // 进度/音量填充与滑块在 CSS 中以分组选择器（.progress-fill, .volume-fill）声明，无裸规则，不可标 strict。
+    selector: '.progress-fill',
+    guards: '进度条已播填充（--text-secondary，不用主色）；缺则进度不可见，seek 落点无反馈'
+  },
+  {
+    selector: '.progress-thumb',
+    guards: '进度条滑块（白色，hover/focus 显形）；缺则拖动无视觉把手'
+  },
+  {
+    selector: '.volume-fill',
+    guards: '音量条已播填充（--text-secondary）；缺则音量不可见'
+  },
+  {
+    selector: '.volume-thumb',
+    guards: '音量条滑块；缺则拖动无视觉把手'
+  },
+  {
+    selector: '.player-cover',
+    guards: '播放栏封面定位锚（position:relative 是均衡器角标绝对定位参照）；缺则均衡器错位'
+  },
+  {
+    selector: '.equalizer',
+    guards: '均衡器容器（唯一持续动画的承载盒）；裸规则存在',
+    strict: true
+  },
+  {
+    selector: '.equalizer-bar',
+    guards: '均衡器单柱 + 0.9s 错相无限动画（--accent）；裸规则存在',
+    strict: true
+  },
+  {
+    selector: '.repeat-one-badge',
+    guards: 'Repeat 单曲循环「1」角标（区分 all/one 两态）；裸规则存在',
+    strict: true
+  },
+  {
+    // descendant 形态（.transport .icon-button.is-active 盒阴影），不可标 strict。
+    selector: '.transport .icon-button.is-active',
+    guards: 'Shuffle/Repeat 激活态（SVG 无法变色，以 accent 描边环表达开关态）；缺则开关态不可辨'
   }
 ]
 

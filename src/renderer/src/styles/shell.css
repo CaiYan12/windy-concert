@@ -521,6 +521,137 @@ a {
   flex: 1;
   border-radius: var(--radius-round);
   background: var(--bg-input);
+  cursor: pointer;
+}
+
+/* ---------- T5.4 进度/音量条：已播填充 + 滑块（mockup.css:1877-1908 的演示值改为真实 position/volume） ----------
+ * 设计约束（F4-3 / 任务书）：4px 槽 hover 增至 6px；已播填充用 --text-secondary（不用主色）；
+ * 滑块为白色 --text-primary，hover/focus 显形。填充与滑块以子元素承载（非 ::before/::after），
+ * 便于组件以 inline 宽度驱动、单测可断言宽度（比伪元素更可测，报告留痕）。 */
+.progress-bar {
+  cursor: pointer;
+}
+
+.progress-bar:hover,
+.volume-bar:hover {
+  height: 6px; /* 4px → 6px 悬停增量 */
+}
+
+.progress-fill,
+.volume-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-secondary); /* 已播填充用次级灰阶，主色留给播放中/收藏 */
+}
+
+.progress-thumb,
+.volume-thumb {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity var(--duration-feedback) var(--ease-standard);
+}
+
+.progress-bar:hover .progress-thumb,
+.progress-bar:focus-visible .progress-thumb,
+.volume-bar:hover .volume-thumb,
+.volume-bar:focus-visible .volume-thumb {
+  opacity: 1;
+}
+
+/* 禁用态（空队列）：不响应指针、滑块不显形、填充降透明度。 */
+.progress-bar[aria-disabled='true'],
+.volume-bar[aria-disabled='true'] {
+  cursor: default;
+}
+
+.progress-bar[aria-disabled='true'] .progress-fill,
+.volume-bar[aria-disabled='true'] .volume-fill {
+  opacity: 0.4;
+}
+
+/* ---------- T5.4 封面角标 + 均衡器（唯一持续动画，见 Equalizer.tsx 头注释） ---------- */
+.player-cover {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.equalizer {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 12px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.equalizer-bar {
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--accent); /* 设计稿 design-plan.md:107 指定 --accent */
+  transform-origin: bottom;
+  animation: equalizer-bounce 0.9s ease-in-out infinite;
+}
+
+.equalizer-bar:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.equalizer-bar:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes equalizer-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* prefers-reduced-motion 下停动画（shell.css:605 全局规则已中性化，此处显式兜底一次）。 */
+@media (prefers-reduced-motion: reduce) {
+  .equalizer-bar {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+}
+
+/* ---------- T5.4 Shuffle/Repeat 激活态（SVG <img> 无法变色，以 accent 描边环表达） ---------- */
+.transport .icon-button.is-active {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Repeat 单曲循环「1」角标（区分 all/one 两态，图标同为 repeat）。 */
+.repeat-one-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: grid;
+  place-items: center;
+  min-width: 10px;
+  height: 10px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 8px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
 }
 
 /* ---------- 队列面板（mockup.css:1665-1763） ---------- */
