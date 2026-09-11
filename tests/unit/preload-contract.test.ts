@@ -10,7 +10,7 @@
 //    （T3.4 交付，9 用例），本文件不重复。
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { Api } from '../../src/preload/index'
-import type { IpcPayloads } from '../../src/main/ipc/channels'
+import type { IpcPayloads } from '../../src/shared/ipc'
 import type {
   CoversReady,
   ScanProgress,

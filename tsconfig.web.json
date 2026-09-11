@@ -6,7 +6,6 @@
     "src/renderer/src/**/*.tsx",
     "src/preload/*.d.ts",
     "src/preload/index.ts",
-    "src/main/ipc/channels.ts",
     "src/main/database/repositories/albumRepo.ts",
     "src/main/database/repositories/artistRepo.ts",
     "src/main/database/repositories/playlistRepo.ts",

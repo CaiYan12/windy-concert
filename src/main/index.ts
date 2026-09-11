@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs';
 import { join, normalize } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { app, shell, BrowserWindow, dialog, protocol, net } from 'electron';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
@@ -17,7 +16,7 @@ import { createScanService } from './library/scanService';
 import { createSettingsStore } from './settings/settingsStore';
 import { IPC } from './ipc/channels';
 import { registerIpcHandlers } from './ipc';
-import { createFolderCache, resolveAudioRequest, resolveCoverRequest } from './library/protocols';
+import { createFolderCache, handleAudioRequest, handleCoverRequest } from './library/protocols';
 
 // WC_USER_DATA 钩子保留：测试/便携化可注入 userData 目录（T0 脚手架约定，留痕）。
 if (process.env.WC_USER_DATA) app.setPath('userData', process.env.WC_USER_DATA);
@@ -162,36 +161,20 @@ app.whenReady().then(() => {
   createWindow();
 
   // ---- T3.2 自定义协议注册（§3.5f；ready 后 protocol.handle 接线）----
+  // T4.10 留痕：handler 主体已提取至 library/protocols.ts（handleAudioRequest /
+  //   handleCoverRequest，T4.10 失败分支单测直驱）；此处仅薄封装接线——net.fetch /
+  //   existsSync 注入，folderCache / coversDir 闭包供给，行为与原内联实现逐字一致。
   // wc-file：resolveAudioRequest 前缀校验（folderCache 供启用目录集合，目录变更经 ipc 侧失效）
   //   → 命中放行 net.fetch(pathToFileURL) 返回流；越界 403（错误说明写入 body）；取流失败 404。
-  protocol.handle('wc-file', async (request) => {
-    const resolved = resolveAudioRequest(request.url, folderCache.get());
-    if ('error' in resolved) {
-      return new Response(resolved.error, { status: 403 });
-    }
-    try {
-      return await net.fetch(pathToFileURL(resolved.filePath).toString());
-    } catch {
-      return new Response('wc-file: 文件不存在或不可读', { status: 404 });
-    }
-  });
+  protocol.handle('wc-file', (request) =>
+    handleAudioRequest(request.url, folderCache.get(), (input) => net.fetch(input)),
+  );
 
   // wc-cover：resolveCoverRequest 校验 UUID + 尺寸白名单 → existsSync 检查 → net.fetch 返回流
   //   （非法请求 400；文件缺失 / 取流失败 404 兜底）。
-  protocol.handle('wc-cover', async (request) => {
-    const resolved = resolveCoverRequest(request.url, coversDir);
-    if ('error' in resolved) {
-      return new Response(resolved.error, { status: 400 });
-    }
-    if (!existsSync(resolved.filePath)) {
-      return new Response('wc-cover: 封面文件不存在', { status: 404 });
-    }
-    try {
-      return await net.fetch(pathToFileURL(resolved.filePath).toString());
-    } catch {
-      return new Response('wc-cover: 封面文件不可读', { status: 404 });
-    }
-  });
+  protocol.handle('wc-cover', (request) =>
+    handleCoverRequest(request.url, coversDir, (input) => net.fetch(input), existsSync),
+  );
 
   // 启动扫描（按设置 autoScanOnStartup；存在启用目录才后台触发，不阻塞窗口显示）。
   scanService.startupScan(settingsStore.get().autoScanOnStartup);

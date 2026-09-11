@@ -16,7 +16,7 @@ import { createHistoryRepo } from '../../../src/main/database/repositories/histo
 import { createPlaylistRepo } from '../../../src/main/database/repositories/playlistRepo';
 import { createTrackRepo } from '../../../src/main/database/repositories/trackRepo';
 import { createSettingsStore } from '../../../src/main/settings/settingsStore';
-import { IPC } from '../../../src/main/ipc/channels';
+import { IPC } from '../../../src/shared/ipc';
 import { registerIpcHandlers, type HandleRegistrar } from '../../../src/main/ipc';
 import type { CoverService } from '../../../src/main/library/coverService';
 import type { ScanService } from '../../../src/main/library/scanService';

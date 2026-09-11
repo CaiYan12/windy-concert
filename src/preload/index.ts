@@ -8,8 +8,8 @@
 //  - T3.3 已移除模板自带的 `window.electron`（electronAPI）暴露，仅保留 §3.6 契约的
 //    window.api；模板组件对 window.electron 的用法已同步清理。
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC } from '../main/ipc/channels'
-import type { IpcPayloads, IpcReturns } from '../main/ipc/channels'
+import { IPC } from '../shared/ipc'
+import type { IpcPayloads, IpcReturns } from '../shared/ipc'
 import type { CoversReady, ScanProgress, Settings } from '../shared/types'
 
 /** 类型安全 invoke：payload 为 void 的 channel 不传第二参，返回类型取自 IpcReturns。 */
