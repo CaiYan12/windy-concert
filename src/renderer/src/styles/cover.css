@@ -55,18 +55,23 @@
   color: var(--text-tertiary);
 }
 
-/* 占位图标（恒为 music-2）——设计稿 .cover .library-icon.cover-icon { width/height:58% }。
- * Icon 组件把 width/height 写成 <img> 的行内样式，行内优先于类规则，故此处必须 !important
- * 才能让 58%（随盒尺寸自适应）生效。这是本文件唯一一处 !important，且仅命中 Cover 自己的
- * 占位图标（.cover-icon）；PlayerBar 的 <Icon> 无 cover-icon 类，尺寸不受影响。 */
-.cover .library-icon.cover-icon {
+/* 占位图标（恒为 music-2）。
+ *
+ * 尺寸修正：设计稿给占位图标的两条 58% 规则挂在 `.cover-icon` 上，但设计稿**从未**给占位图标
+ * 加过这个类（实测 2026-09-10：mockups/*.html 共 15 个 cover--placeholder，内部 <i> 全部无
+ * cover-icon；唯一 .classList.add('cover-icon') 在 mockup.js 的 addCoverIcons，其前提是 .cover
+ * **不带**色类且**无**直接图标子节点——对占位封面恰好相反，故该规则在设计稿里是死规则）。
+ * 「占位图标占 58% 盒尺寸」是设计意图本身，改由 .cover--placeholder 承担选择器。
+ * Icon 组件把 width/height 写成 <img> 的行内样式，行内优先于类规则，故必须 !important。
+ * 这是本文件唯一一处 !important，且仅命中 Cover 自己的占位图标。 */
+.cover--placeholder .library-icon {
   width: 58% !important;
   height: 58% !important;
-  opacity: 1;
-  pointer-events: none;
-}
-
-/* 非 Cover 组件的占位图标（如 PlayerBar 的 cover--mini）保留 T4.1 的弱化处理，与 Cover 无关。 */
-.cover--placeholder .library-icon:not(.cover-icon) {
+  /* 不透明度：设计稿 mockup.css:728 为 `.cover--placeholder .library-icon:not(.cover-icon) { opacity: .38 }`。
+   * :not(.cover-icon) 在设计稿里对占位封面是空防御——已论证占位图标从不带该类（见上），
+   * 无论设计稿作者写它是出于什么意图，它都不改变实际渲染。迁移时直接去掉 :not，
+   * 避免给后来者「占位图标可能带 cover-icon」的错误暗示；照抄反而会在类名意外出现时
+   * 把占位图标打回 100% 白（首轮复审 C1 同族问题）。 */
   opacity: 0.38;
+  pointer-events: none;
 }

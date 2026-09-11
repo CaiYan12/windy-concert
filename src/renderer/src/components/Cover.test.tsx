@@ -50,9 +50,16 @@ describe('Cover 渲染（SSR）', () => {
   it('无 coverId → 占位（cover cover--placeholder + music-2 图标），不出 <img> 取图', () => {
     const html = renderToStaticMarkup(<Cover coverId={null} size={64} className="cover--table" />)
     expect(html).toContain('class="cover cover--table cover--placeholder"')
-    expect(html).toContain('library-icon cover-icon')
+    expect(html).toContain('library-icon')
     expect(html).toContain('music-2')
     expect(html).not.toContain('wc-cover://')
+  })
+
+  it('占位图标不带附加类（样式由 .cover--placeholder .library-icon 承担，不靠额外类名）', () => {
+    const html = renderToStaticMarkup(<Cover coverId={null} size={64} className="cover--table" />)
+    // 占位图标应是洁净的 `library-icon`（Icon 组件的固定类），不得再挂 cover-icon 之类的钩子。
+    expect(html).toMatch(/<img[^>]*class="library-icon"/)
+    expect(html).toContain('class="library-icon"')
   })
 
   it('alt 透传到 <img>（语义封面场景）', () => {
@@ -79,7 +86,8 @@ describe('Cover onError 回退（客户端挂载）', () => {
       img?.dispatchEvent(new Event('error'))
     })
     expect(container.querySelector('.cover--placeholder')).not.toBeNull()
-    expect(container.querySelector('img.cover-icon')).not.toBeNull()
+    expect(container.querySelector('img.cover-icon')).toBeNull()
+    expect(container.querySelector('.cover--placeholder img.library-icon')).not.toBeNull()
     expect(container.querySelector(`img[src="wc-cover://${UUID}?s=64"]`)).toBeNull()
 
     act(() => {

@@ -457,4 +457,22 @@ describe('TrackList error × 数据并存（I1）', () => {
       renderToStaticMarkup(<TrackHeaderRow sortBy="title" order="asc" sortDegraded />)
     ).toContain('is-sort-degraded')
   })
+
+  // I1 复审加固：上一条只断言类名，属「只测 DOM 在不在」——样式规则可以整条缺失而测试仍绿
+  // （T4.3 首轮误绿即此模式）。此处补两条**结构可见性**断言：错误条的标题/详情两段必须落到
+  // 各自的子元素上，且降级类必须挂在**表头行**本身（否则 CSS 的 `.track-row--head.is-sort-degraded`
+  // 命不中，表头压暗不生效）。
+  it('错误条两段落在 title/hint 子元素上（不是光有一个空壳 div）', () => {
+    const html = renderToStaticMarkup(<TrackList songs={[makeTrack()]} error="IPC 失败" />)
+    expect(html).toContain('class="track-list-error-title"')
+    expect(html).toContain('class="track-list-error-hint"')
+    // 两段内容分别为 error 标题 key 的取值与具体错误信息。
+    expect(html).toMatch(/track-list-error-title">«songs\.error»</)
+    expect(html).toMatch(/track-list-error-hint">IPC 失败</)
+  })
+
+  it('降级类挂在表头行本体（.track-row--head.is-sort-degraded），而非其它容器', () => {
+    const html = renderToStaticMarkup(<TrackHeaderRow sortBy="title" order="asc" sortDegraded />)
+    expect(html).toContain('class="track-row track-row--head is-sort-degraded"')
+  })
 })

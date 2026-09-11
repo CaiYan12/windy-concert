@@ -8,6 +8,8 @@ import { Icon } from './Icon'
  *   有 coverId → <img src="wc-cover://{coverId}?s={size}">，其中 coverId 为主进程生成的 UUID，
  *   size ∈ {64,256,512} 为主进程预生成的三档图像（resolveCoverRequest 只放行这三档）。
  *   无 coverId → 中性占位：--bg-elevated 底 + music-2 图标（对齐 mockup.css:723-734）。
+ *   占位图标的不透明度为 .38（mockup.css:728 的设计意图），由 cover.css 的
+ *   `.cover--placeholder .library-icon` 承担；占位图标**不加**任何额外类（设计稿未加过，见 cover.css 注释）。
  *
  * 尺寸解耦（回应「表格缩略图档位自行实测决定并留痕」）：
  *   · size ∈ {64,256,512} 只决定**请求的图像档位**；CSS 盒尺寸由调用方 className 决定
@@ -59,7 +61,7 @@ export function Cover({ coverId, size, alt = '', className }: CoverProps): React
   if (!url || failedUrl === url) {
     return (
       <div className={`${classes} cover--placeholder`}>
-        <Icon name="music-2" size={PLACEHOLDER_ICON_SIZE[size]} className="cover-icon" />
+        <Icon name="music-2" size={PLACEHOLDER_ICON_SIZE[size]} />
       </div>
     )
   }

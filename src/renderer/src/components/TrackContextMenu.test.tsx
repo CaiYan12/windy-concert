@@ -148,6 +148,36 @@ describe('I4 键盘可达性', () => {
     expect(document.activeElement).toBe(parent)
     unmount()
   })
+
+  // I4 复审补测：Home / End 在第一轮实现中存在但无自动化锚点（复审列为缺口）。
+  // 语义同 WAI-ARIA menu pattern：Home → 首个可见项，End → 末个可见项。
+  it('Home / End 跳到首个 / 末个可见菜单项', () => {
+    const { menu, unmount } = mountMenu()
+    const items = Array.from(menu.querySelectorAll<HTMLElement>(':scope > [role="menuitem"]'))
+
+    act(() => items[2].focus())
+    press(items[2], 'End')
+    expect(document.activeElement).toBe(items[items.length - 1])
+
+    press(items[items.length - 1], 'Home')
+    expect(document.activeElement).toBe(items[0])
+    unmount()
+  })
+
+  it('子菜单展开时 Home / End 只落在可见项集合内（不含已折叠的子项）', () => {
+    const { menu, unmount } = mountMenu()
+    const parent = menu.querySelector<HTMLElement>('.context-item--parent')!
+    act(() => parent.focus())
+
+    // 折叠态：Home 落首项，End 落末项（= 第 4 个顶层项，子项不参与轮转）。
+    const topItems = Array.from(menu.querySelectorAll<HTMLElement>(':scope > [role="menuitem"]'))
+    press(parent, 'End')
+    expect(document.activeElement).toBe(topItems[topItems.length - 1])
+
+    press(topItems[topItems.length - 1], 'Home')
+    expect(document.activeElement).toBe(topItems[0])
+    unmount()
+  })
 })
 
 describe('I2 滚动关闭不误伤菜单内滚动', () => {

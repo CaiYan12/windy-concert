@@ -56,6 +56,37 @@
   font-size: var(--font-size-sm);
 }
 
+/* I1：数据非空 + error 并存时的**非阻塞错误条**（不遮列表，插在表头与滚动区之间）。
+ * 设计稿无此元素（mockups 无 error×数据并存态），故此处不引 mockup.css 行号——皮肤取自既有 tokens：
+ * 底用 --bg-elevated（与浮层/输入同阶），左缘 2px --danger 作语义提示，文字分主/次两级。
+ * 语义色只出现在这条 2px 边线上；图标不着色（Icon 渲染 <img>，CSS color 无效，见 C1 铁律），
+ * 本元素也不含图标。
+ * 留痕（2026-09-11 二轮复审）：本容器规则曾在首轮修复中遗漏（只写了两个子规则），
+ * 且 css-contract 守卫的子串匹配让该缺口不可见——两处已同步修，见 tests/unit/renderer/css-contract.test.ts。 */
+.track-list-error {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--danger);
+  background: var(--bg-elevated);
+}
+
+.track-list-error-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.track-list-error-hint {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- 表格与行（mockup.css:736-813） ---------- */
 /* 偏离留痕（相对 mockup.css:736 的普通块级盒）：设计稿整页在 .main-content 里自然滚动，
  * 无虚拟化；本组件引入 virtuoso 后必须给滚动区一个**确定高度**——Virtuoso 根元素以自身高度
@@ -108,6 +139,16 @@
 .track-row--head .duration,
 .track-row--head .spec {
   color: var(--text-secondary);
+}
+
+/* I1：error 与数据并存 → 排序指示降级。
+ * 情境：setSort 后 refresh 失败，表头箭头已指向新排序，列表仍是旧排序的数据。
+ * 处理：把表头整体降透明度，削弱「箭头可信」的暗示；
+ * 排序按钮保持可点（再点即重试），故不用 pointer-events / disabled。
+ * 此处用 filter 而非子选择器逐个改色：表头内既有 <span>（列名）也有 <img>（chevron，白色烘焙），
+ * 二者唯一的共同削弱手段是整体不透明度。 */
+.track-row--head.is-sort-degraded {
+  opacity: 0.45;
 }
 
 .track-row:not(.track-row--head):hover {
