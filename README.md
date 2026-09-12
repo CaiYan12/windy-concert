@@ -64,6 +64,13 @@ Phase 6 已完成 T6.0~T6.6。最终状态：**656 unit tests / typecheck 0 / e2
 - **T7.6 重启断言复用 T6.6 基建**——launchWithUserData（fixtures.ts）已验证顺序 launch 无 profile 锁风险；「关 autoScanOnStartup 重启无扫描事件」同模式。
 - **行内确认条样式复用**——.inline-confirm 现落 playlists.css（页面级），Settings 页复用时评估上移共享层（CSS 组织纪律）。
 - **测试缺口备忘**：Liked 5 键排序仅默认键有 e2e（余四键单测）；拖拽/乐观回滚错误路径仅单测（错误注入 e2e 成本高，可接受）；favoritesStore 并发双 toggle 回滚口径建议 Phase 7 顺手补一例；200 首 M4 人工脚本待 Phase 8。
+**现状核查（2026-09-12 主会话实锤，缩小 T7 实际工作量）**
+
+- `library:addFolder` **已支持可选 path 参数**（payload `{path?}`，无 path 走系统对话框）——T7.6 e2e「直传 path」零新增，未来 CLI 亦可复用。
+- `startupScan(autoScanOnStartup)` **已在 main/index.ts:180 接线**——T7.3 的「启动时自动扫描」开关仅做 UI 绑定（settings 四键已含该键）。
+- **无 app 版本通道**——T7.5 About 需新增最小 `app:getVersion`（main 侧 `app.getVersion()` 标准做法）。
+- **目录移除/禁用后的曲目处置语义未定**——repo 侧 removeFolder/setFolderEnabled 已有（含协议 folderCache 失效回调），但「曲目是否立即 markMissing」待裁定（T7.6 e2e 两种口径均接受）。
+- **settings 语言键值域锁定 `'zh-CN'`**（T3.4 KEY_VALIDATORS）——T7.2 下拉占位「English · 0.5 提供」与校验一致，无需扩值域。
 
 **Phase 3（IPC / Preload / 设置 / i18n）——前置清单收口情况（2026-09-11 Phase 4 收尾更新）**
 
