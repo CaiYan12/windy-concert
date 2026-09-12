@@ -937,6 +937,7 @@ package.json scripts 按 §3.8 替换；按 §3.8 源码创建根目录 `build.b
 - [ ] **T7.4 Playback**：音量默认值回显（实际音量控制在播放栏，此处只做说明与默认值）；留待 0.5 的 Metadata/Cache 分区不渲染占位（YAGNI，仅 About 里声明规划）。
 - [ ] **T7.5 About**：版本号（读 package.json version）、已知限制八条（需求 §8 逐条对应文案，走 i18n）、技术栈致谢（Electron/Chromium/SQLite/music-metadata/sharp/React）。
 - [ ] **T7.6 E2E `settings-folders.spec.ts`**：添加目录（直传 path）→ 重启仍在（F1-1 前半）→ 禁用 → rescanAll → 断言该目录文件 status=missing 或未被新扫（以 last_scan_at/解析计数佐证）→ 重新启用 → 恢复（F1-1 后半）；关掉 autoScanOnStartup → 重启不产生扫描事件。
+  > **T7 grill 裁定（2026-09-12，用户四项拍板，各任务实现时落实）**：① **目录移除/禁用 → 立即 markMissing**（该目录曲目行保留、播放历史与收藏自然保留，仅状态变灰；T7.6 e2e 直接收口 status=missing 分支——实现点：removeFolder/setFolderEnabled 成功后对受影响曲目调 markMissing 语义，handler 侧已有 onFoldersChanged 失效回调可挂）；② **Playback 分区音量默认值只读回显**（仅显示 0.8 默认与说明，不做修改控件——YAGNI，不扩 settings 键）；③ **语言下拉 English 项渲染为 disabled**（附「0.5 提供」后缀，无点击反馈，settings 值域维持 'zh-CN' 不扩）；④ **About 按计划最小**（新增最小 `app:getVersion` 通道：main `app.getVersion()` + preload + shared 契约，About 显示版本号 + 已知限制八条 + 技术栈致谢，不加诊断信息）。另：T7 承接项两项（folderRepo.normalizePath 边界加固 / QueuePanel position selector 化）按 README Phase 7 前置清单随 T7.3 与 T7.1 顺手落。
 
 **预期产出**：设置页完整，目录管理满足 F1-1 全部验收。
 
