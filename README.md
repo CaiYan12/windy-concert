@@ -40,26 +40,30 @@ npm run dist       # 生产构建 + electron-builder --win dir
 
 ## 暂未解决的问题
 
-**Phase 5（播放器核心与队列）——Phase 6 前置清单（第三方收尾评审产出，2026-09-11，按序）**
+**Phase 5（播放器核心与队列）——Phase 6 前置清单收口情况（2026-09-12 更新）**
 
-Phase 5 已完成 T5.1~T5.7（queue 逐字冻结 / 三件套 / 播放栏 / 队列面板 / 接通 / e2e）。最终状态：**502 unit tests / typecheck 0 / e2e 16 passed**（playback-queue 连跑 3 轮无 flaky）；queue.ts 与计划 §3.5b SHA1 一致经收尾评审独立复验。上轮 Phase 5 前置清单收口：Detail 排序 dead affordance ✅（T4.11 sortable + 详情页 false）；songsCount ✅（T4.11 getStats）；card-play affordance 统一 → 见下「Albums 卡片播放钮」升级立案。
+Phase 5 已完成 T5.1~T5.7（收尾评审 PASS_WITH_NOTES）；Phase 6 期间原前置清单逐项收口：
 
-- **[T6.0 前置小包] `ensureVolumeRestored()` 接线**：音量/静音持久化**只写不读**（T5.3 建机制、无任务认领接线），每次启动回退 DEFAULT_VOLUME=0.8。→ App 挂载调用（AppShell 或 router loader）+ 启动恢复单测。
-- **[T6.0 前置小包] audio error 事件链路空白**：AudioEventType 声明了 error 但全仓零订阅——播放损坏/解码失败文件实况 = 假计费（playCount+1 但无声）+ playing 乐观置位无回退 + 均衡器假播动画，仅手动 next 可解。→ store/service 订阅 error → 结算口径裁定（假计费是否回冲）→ UI 错误态（toast/自动跳下一首）→ 单测 + e2e。
-- **[T6.0 前置小包] QueuePanel 关闭焦点回落**：计划验收标准明文「关闭后焦点回落触发按钮」——AppShell onClose 无 focus 管理，x 关闭后焦点落 body。→ 补 focus 管理 + 键盘走查留痕（计划 903 行验收项后半句）。
-- **Albums 卡片播放钮副作用升级**：`playContext([])` 在 T5.3 I1 修复后从 no-op 变成**会停掉正在播音乐**。→ Phase 6 立案正式接通（先取专辑曲目再 playContext）。- **Liked 术语整改（T6 范围承接）**：用户裁定统一用「收藏」，设计稿 `Liked.html` / design-plan §4.6 的「喜欢的音乐」需改——**T6 开工前先解除 `docs/design/**` 只读约束**再执行（T4.3 备案，评审清单第 2 项，此前收录时遗漏现补回）。
-- **playlistRepo 守卫（Phase 1 遗留承接）**：`reorder([])` 无守卫会清空歌单、`addTracks` 遇不存在 trackId 的 FK 报错不友好。→ **Phase 6 歌单 UI 接入时**补守卫与错误文案（原建议时机即 Phase 6，在案）。
-- **folderRepo.normalizePath 边界**：UNC 主机段大小写未归一、根路径 `C:\` 归一为 `c:`、空串无校验。→ 原建议时机 Phase 3/4 消费时加固，已过而未做——**Phase 6 顺延承接**（扫描对账已上线，风险中低）。
-- **计划 §3.4 FTS 触发器正文**：代码已按批准修正为标准 DELETE，计划正文仍为历史原文（'delete' 语法）——按 T4.10 起的口径**保留历史原文 + 执行备注引用**，不再单独排期（在案确认）。
+- ✅ **ensureVolumeRestored 接线**（T6.0：AppShell 挂载 effect + StrictMode 幂等断言 + 变异 M3）
+- ✅ **audio error 事件链路**（T6.0：handleError 结算 completed:0 + playing 回退 + toast「无法播放该文件」；不回冲 playCount/不跳下一首——「loadTrack 即计」口径自洽；e2e 用 08-broken.mp3 合法 wc-file 注入触发解码失败）
+- ✅ **QueuePanel 关闭焦点回落**（T6.0：onToggleQueue 传触发元素 + AppShell closeQueue focus）
+- ✅ **Liked 术语整改**（T6.1：33 处「喜欢的音乐/歌曲」→「收藏/收藏的歌曲」，design 范围 python 核验 0 残留；docs 历史正文保留原口径）
+- ✅ **Detail 排序 dead affordance**（T4.11 sortable）
+- ✅ **songsCount 通道**（T4.11 getStats）
+- **顺延项**：QueuePanel position selector 化 → **Phase 7 承接**（评审明确「Phase 6 顺手」未做）；Albums 卡片播放钮副作用升级（playContext([]) 停止正在播）→ Phase 6 期间 **T6.2 已正式接通**（handleCardPlay 先 get 再 playContext，trackCount=0 不渲染死按钮）——副作用解除 ✅；Recent 30 天窗口 → 0.1 按条数上限口径收口（备案不做）；CSP data:（T6.4 追加，风险评估通过）；CollageCover dataURL 无缓存 → [Minor] 数百歌单时建议 LRU，Phase 8 性能实测复查。
 
-- **audio error 测试缺口**（与上条同源）：单测 + e2e 双缺（解码失败/损坏文件路径）。
-- **history:listRecent 无 e2e 断言**：playCount 经 getTrack 有断言，playedDuration/completed 落库值无端到端验证（service 侧 payload 已有单测锚定，风险中低）。→ 建议时机：Phase 6 e2e 扩展顺手补。
-- **QueuePanel 随 position 高频重渲**：usePlayer() 全态订阅但只消费 queueView（每 250ms 重渲整面板）。→ selector 化（照 usePlayingTrackId 先例），建议时机：Phase 6 顺手。
-- **advance() resolve 失败分支不 pause**（防御路径与 null 分支不一致，现实不可达）。→ Phase 6 顺手统一。
-- **enqueue 重复曲目去重裁定**：面板如实呈现现状留痕在案。→ T5.6 右键菜单 toast 时顺带裁定（承接 T5.5 备注）。
-- **SearchResults 紧凑表不接播放**：范围裁定确认在案（非 TrackList），无需动作。
-- **volume/seek 边界用例**：clamp 防御在、专项边界用例缺。→ 建议时机：Phase 6/8 随对应修复补。
-- **环境备注（评审实锤）**：vitest 5.0.0 在 Windows **小写盘符 cwd** 下全部测试文件报 `reading 'config'`（vitest#10692/#10843）——「测试必须以大写 D:\Dev\windy-concert 入口」约束的本质即此；诊断期 `npm ci`（lockfile 口径）无害。
+**Phase 6（收藏、歌单、最近播放）——Phase 7 前置清单（第三方收尾评审产出，2026-09-12，按序）**
+
+Phase 6 已完成 T6.0~T6.6。最终状态：**656 unit tests / typecheck 0 / e2e 22 passed（两轮零 flaky）**；favorites/playlists 双新切片职责边界干净零交叉污染；F6-1/F6-2/F6-3/F7-1/F7-2 验收映射逐条落实；docs/design 术语整改零视觉改动经程序化验证。
+
+- **[T7.3 承接] addFolder 后必须显式 `library:scan`**（计划 825 行 V1.7 澄清）——T7.6 e2e 已按此编排，UI 不得省略。
+- **[T7.3 承接] folderRepo.normalizePath 边界加固**（UNC 大小写 / `C:\`→`c:` / 空串）——Phase 6 顺延未做，目录管理 UI 是最后消费时机（风险中低，README 在案）。
+- **[T7.1 承接] settings:set 持久化口径**——音量 500ms debounce（VOLUME_SAVE_DEBOUNCE_MS）+ muted 即时持久化已实现；设置页新控件沿用：离散开关直写、连续值 debounce。
+- **[Phase 7 承接] QueuePanel position selector 化**（Phase 6「顺手」未做）——照 usePlayingTrackId 先例，正式写入 T7 任务备注。
+- **Recent 30 天窗口**——0.1 按条数上限口径收口（Recent.tsx 留痕），不建议 0.1 做。
+- **T7.6 重启断言复用 T6.6 基建**——launchWithUserData（fixtures.ts）已验证顺序 launch 无 profile 锁风险；「关 autoScanOnStartup 重启无扫描事件」同模式。
+- **行内确认条样式复用**——.inline-confirm 现落 playlists.css（页面级），Settings 页复用时评估上移共享层（CSS 组织纪律）。
+- **测试缺口备忘**：Liked 5 键排序仅默认键有 e2e（余四键单测）；拖拽/乐观回滚错误路径仅单测（错误注入 e2e 成本高，可接受）；favoritesStore 并发双 toggle 回滚口径建议 Phase 7 顺手补一例；200 首 M4 人工脚本待 Phase 8。
 
 **Phase 3（IPC / Preload / 设置 / i18n）——前置清单收口情况（2026-09-11 Phase 4 收尾更新）**
 
