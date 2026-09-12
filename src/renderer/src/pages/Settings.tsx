@@ -154,11 +154,17 @@ export function Settings(): ReactElement {
     }
   }
 
-  /** 添加目录（无参走系统对话框）；用户取消选择在 main 侧 throw，按取消静默处理。 */
+  /**
+   * 添加目录（无参走系统对话框）；成功后**显式触发增量扫描**（T7.3 收尾评审 Critical 修复：
+   * 计划 825 行 V1.7 明文「Phase 7 UI 接线时必须补扫描调用」——此前只刷新列表，新目录文件
+   * 静默不入库，须手动全量重扫才能可见）。scan 为 fire-and-forget（进度经 scan:progress 呈现）。
+   * 用户取消选择在 main 侧 throw，按取消静默处理（不触发扫描）。
+   */
   async function handleAddFolder(): Promise<void> {
     try {
       await api.library.addFolder()
       await refreshFolders()
+      await api.library.scan()
     } catch (err) {
       console.info('[settings] 添加目录未完成（用户取消或失败）', err)
     }

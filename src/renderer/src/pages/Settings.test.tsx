@@ -52,6 +52,7 @@ let listFoldersCalls = 0
 let setFolderEnabledCalls: Array<{ id: number; enabled: boolean }> = []
 let removeFolderCalls: number[] = []
 let addFolderCalls = 0
+let scanCalls = 0
 let rescanAllCalls = 0
 let failListFolders = false
 
@@ -89,6 +90,9 @@ function installSettingsApi(): void {
       addFolderCalls += 1
       return { id: 99 }
     },
+    scan: async (): Promise<void> => {
+      scanCalls += 1
+    },
     removeFolder: async (id: number): Promise<void> => {
       removeFolderCalls.push(id)
     },
@@ -122,6 +126,7 @@ beforeEach(() => {
   setFolderEnabledCalls = []
   removeFolderCalls = []
   addFolderCalls = 0
+  scanCalls = 0
   rescanAllCalls = 0
   failListFolders = false
   scanProgressCb = null
@@ -329,6 +334,7 @@ describe('Library 分区（T7.3）', () => {
       await Promise.resolve()
     })
     expect(addFolderCalls).toBe(1)
+    expect(scanCalls).toBe(1) // T7.3 收尾评审 Critical：添加成功后显式触发扫描
     expect(listFoldersCalls).toBe(2)
     unmount()
   })
