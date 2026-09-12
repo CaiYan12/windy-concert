@@ -187,7 +187,10 @@ a {
   list-style: none;
 }
 
-.nav-link {
+/* T6.2：侧栏歌单行（.playlist-link）与主导航行（.nav-link）共享同一基底——设计稿 mockup.css:292-304
+   即把两者并入同一组规则（.nav-link, .playlist-link { … }），此处照做，避免歌单行缺 flex/padding/hover。 */
+.nav-link,
+.playlist-link {
   position: relative;
   display: flex;
   min-height: 40px;
@@ -204,18 +207,21 @@ a {
     color var(--duration-feedback) var(--ease-standard);
 }
 
-.nav-link:hover {
+.nav-link:hover,
+.playlist-link:hover {
   background: var(--row-hover);
   color: var(--text-primary);
 }
 
 /* 活跃态由路由驱动（NavLink 自动输出 aria-current="page"），无底色高亮 + 左侧指示条。 */
-.nav-link[aria-current='page'] {
+.nav-link[aria-current='page'],
+.playlist-link[aria-current='page'] {
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
 }
 
-.nav-link[aria-current='page']::before {
+.nav-link[aria-current='page']::before,
+.playlist-link[aria-current='page']::before {
   position: absolute;
   top: 8px;
   bottom: 8px;
@@ -277,8 +283,22 @@ a {
   scrollbar-width: thin;
 }
 
-/* 歌单行本体（.playlist-link / .playlist-dot，mockup.css:292-304）随 T6 歌单功能落地；
-   T4.1 的 .playlist-list 为空列表，仅需上面的共享 grid 规则。 */
+/* 歌单行本体（.playlist-link / .playlist-dot，mockup.css:292-304）。T4.1 时 .playlist-list 为空列表，
+   仅需上面的共享 grid 规则；T6.2 接入真实歌单后补上这两条。.nav-link 的共享基底规则
+   （min-height/gap/padding/hover/currentColor 图标）在 shell.css 上方已含 .playlist-link 选择器，
+   故此处只补歌单行特有的三点：更矮的行高、更小的字号、以及 .playlist-dot 圆点。 */
+.playlist-link {
+  min-height: 34px;
+  font-size: var(--font-size-sm);
+}
+
+.playlist-link .playlist-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
 
 /* ---------- 顶栏（mockup.css:314-424） ---------- */
 .topbar {

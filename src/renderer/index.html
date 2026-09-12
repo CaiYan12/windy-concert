@@ -4,9 +4,13 @@
     <meta charset="UTF-8" />
     <title>Electron</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!-- T6.4：img-src 追加 data: —— 歌单拼贴封面（CollageCover）用离屏 canvas 把前 4 首封面
+         合成为 dataURL 后以 <img> 呈现；不放行 data: 会被 CSP 拦截（且控制台报 violation）。
+         data: 图像不执行脚本、不发起网络请求，风险等同现有 'self' 静态资源。
+         图标 svg 不受影响（仍经 ?url&no-inline 输出为独立资产，走 'self'，见 Icon.tsx）。 -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' wc-cover:; media-src 'self' wc-file:; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; img-src 'self' wc-cover: data:; media-src 'self' wc-file:; style-src 'self' 'unsafe-inline'"
     />
   </head>
 

@@ -43,6 +43,17 @@ export interface TrackRowItemProps {
   onUnplayableActivate?: (track: TrackRow, index: number) => void
   onToggleFavorite?: (track: TrackRow, next: boolean) => void
   onOpenMenu?: (event: ReactMouseEvent, track: TrackRow) => void
+  /**
+   * T6.3：本行可拖拽重排。true 时行挂 draggable="true" + .drag-row，并在首列渲染
+   * grip-vertical 手柄格（设计稿 PlaylistDetail.html:9）。
+   */
+  draggable?: boolean
+  /** T6.3：拖拽视觉态——'dragging'（源行 60% 透明）/ 'drop-target'（目标行上缘 2px 插入线）。 */
+  dragState?: 'dragging' | 'drop-target' | null
+  onDragStartRow?: (index: number) => void
+  onDragOverRow?: (index: number) => void
+  onDropRow?: (index: number) => void
+  onDragEndRow?: () => void
 }
 
 export function TrackRowItem({
@@ -54,7 +65,13 @@ export function TrackRowItem({
   onActivate,
   onUnplayableActivate,
   onToggleFavorite,
-  onOpenMenu
+  onOpenMenu,
+  draggable = false,
+  dragState = null,
+  onDragStartRow,
+  onDragOverRow,
+  onDropRow,
+  onDragEndRow
 }: TrackRowItemProps): ReactElement {
   const { t } = useI18n()
   const state = resolveRowState(track)
@@ -63,6 +80,9 @@ export function TrackRowItem({
 
   const rowClass = [
     'track-row',
+    draggable ? 'drag-row' : '',
+    dragState === 'dragging' ? 'is-dragging' : '',
+    dragState === 'drop-target' ? 'is-drop-target' : '',
     isSelected ? 'is-selected' : '',
     isPlaying ? 'is-playing' : '',
     state === 'missing' ? 'is-missing' : '',
@@ -101,8 +121,39 @@ export function TrackRowItem({
       className={rowClass}
       role="row"
       tabIndex={0}
+      draggable={draggable ? true : undefined}
       aria-selected={isSelected || undefined}
       onClick={() => onSelect?.(track.id)}
+      onDragStart={
+        draggable
+          ? (event) => {
+              // Firefox 等要求 dragstart 里写入 data 才会真正启动拖拽；内容仅供浏览器识别，
+              // 重排语义由 TrackList 的 index 状态承担（不依赖 dataTransfer 读回）。
+              event.dataTransfer?.setData('text/plain', String(index))
+              if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+              onDragStartRow?.(index)
+            }
+          : undefined
+      }
+      onDragOver={
+        draggable
+          ? (event) => {
+              // 必须 preventDefault 才允许 drop（HTML5 DnD 默认拒绝）。
+              event.preventDefault()
+              if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+              onDragOverRow?.(index)
+            }
+          : undefined
+      }
+      onDrop={
+        draggable
+          ? (event) => {
+              event.preventDefault()
+              onDropRow?.(index)
+            }
+          : undefined
+      }
+      onDragEnd={draggable ? () => onDragEndRow?.() : undefined}
       onDoubleClick={() => {
         // missing / 不可播：双击不触发播放，改走 onUnplayableActivate（T5.6 不可播 toast，
         // §3.7 line 572）。此拦截由 TrackList.test.tsx 客户端挂载用例锚定：缺失 / 不可播行
@@ -116,6 +167,16 @@ export function TrackRowItem({
         onOpenMenu?.(event, track)
       }}
     >
+      {draggable ? (
+        // T6.3：首列拖拽手柄（设计稿 PlaylistDetail.html:9 的首列）。手柄是纯视觉把手——
+        // 拖拽由整行承担（draggable="true"），故不进 tab 序、不单独挂事件。
+        <div className="track-cell track-cell--drag" role="cell">
+          <span className="drag-handle" title={t('playlists.dragHint')} aria-hidden="true">
+            <Icon name="grip-vertical" size={16} />
+          </span>
+        </div>
+      ) : null}
+
       <div className="track-cell track-cell--cover" role="cell">
         <Cover coverId={track.coverId} size={64} className="cover--table" />
       </div>

@@ -1,8 +1,10 @@
 import { useEffect, type ReactElement } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 import { NAV_ITEMS } from '../../routes'
 import { ensureStatsLoaded, formatCount, useStats } from '../../stores/statsStore'
+import { ensurePlaylistsLoaded, usePlaylists } from '../../stores/playlistsStore'
+import { useToastStore } from '../../stores/toastStore'
 import { Icon } from '../Icon'
 
 /**
@@ -26,12 +28,33 @@ import { Icon } from '../Icon'
  */
 export function Sidebar(): ReactElement {
   const { t } = useI18n()
+  const navigate = useNavigate()
   const { stats } = useStats()
+  // T6.2：侧栏「我的歌单」列表读共享切片（Playlists 页 / 详情页同一事实源）。
+  const { playlists, listLoaded, creating, create } = usePlaylists()
 
   // 幂等首拉（scan done 自动刷新见 statsStore 模块级订阅）。
   useEffect(() => {
     ensureStatsLoaded()
+    // T6.2：侧栏是歌单列表的常驻消费者——应用启动即建立列表（create/rename/delete 后由
+    // store 自身 refresh 联动，本组件无需再取数）。
+    ensurePlaylistsLoaded()
   }, [])
+
+  /**
+   * 侧栏「新建歌单」：与右键菜单的「新建歌单」同口径——以默认名立即落库（回车即得，
+   * 不弹系统对话框），随后跳进详情页改名/加曲。失败只 toast，不改变当前路由。
+   */
+  const handleCreatePlaylist = (): void => {
+    void (async () => {
+      const row = await create(t('nav.playlists.untitled'))
+      if (!row) {
+        useToastStore.getState().showToast(t('toast.actionFailed'))
+        return
+      }
+      navigate(`/playlists/${row.id}`)
+    })()
+  }
 
   return (
     <aside className="sidebar" aria-label={t('nav.ariaMain')}>
@@ -67,15 +90,31 @@ export function Sidebar(): ReactElement {
 
       <div className="sidebar-section-head">
         <span>{t('nav.myPlaylists')}</span>
-        {/* 新建歌单入口：T6.1 接线，占位期 disabled（避免无功能按钮误导）。 */}
-        <button type="button" aria-label={t('nav.playlists.new')} disabled>
+        {/* 新建歌单入口（T6.2 接线）：以默认名建单并跳详情页改名；create 有重入守卫，连击不重复建。 */}
+        <button
+          type="button"
+          aria-label={t('nav.playlists.new')}
+          disabled={creating}
+          onClick={handleCreatePlaylist}
+        >
           <Icon name="plus" />
         </button>
       </div>
 
       <div className="playlist-scroll">
-        {/* 歌单列表 T6 接入：占位期渲染空列表（不渲染假歌单）。 */}
-        <ul className="playlist-list" />
+        {/* 歌单列表（T6.2）：仅在列表已加载后渲染真实行——未加载时保持空列表，不渲染假歌单。 */}
+        <ul className="playlist-list">
+          {listLoaded
+            ? playlists.map((playlist) => (
+                <li key={playlist.id}>
+                  <NavLink className="playlist-link" to={`/playlists/${playlist.id}`}>
+                    <span className="playlist-dot" />
+                    <span>{playlist.name}</span>
+                  </NavLink>
+                </li>
+              ))
+            : null}
+        </ul>
       </div>
     </aside>
   )

@@ -39,6 +39,7 @@ const STYLE_FILES = [
   'src/renderer/src/styles/cover.css',
   'src/renderer/src/styles/browse.css',
   'src/renderer/src/styles/liked.css',
+  'src/renderer/src/styles/playlists.css',
   'src/renderer/src/styles/search.css',
   'src/renderer/src/styles/shell.css',
   'src/renderer/src/styles/toast.css'
@@ -349,6 +350,78 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
   {
     selector: '.toast-label',
     guards: 'toast 文案（semibold）；裸规则存在',
+    strict: true
+  },
+  // --- T6.2 / T6.4 歌单（playlists.css）语义关键类 ---
+  {
+    selector: '.playlist-grid',
+    guards: '歌单网格容器（auto-fill minmax(160px,1fr)）；缺则卡片逐行堆叠，网格视觉契约失效',
+    strict: true
+  },
+  {
+    selector: '.playlist-card',
+    guards: '歌单卡：position:relative 是 .card-play 绝对定位锚点；缺则播放钮错位、卡片无样式',
+    strict: true
+  },
+  {
+    selector: '.collage-cover',
+    guards: 'T6.4 拼贴封面 2×2 网格容器；缺则四格封面竖排散落，与设计稿形态不符',
+    strict: true
+  },
+  {
+    selector: '.collage-cover-image',
+    guards: 'canvas 合成 dataURL 的呈现位（铺满网格盒）；缺则合成图按原始像素尺寸溢出/留白',
+    strict: true
+  },
+  {
+    selector: '.new-card',
+    guards: '虚线「新建歌单」卡（dashed 边框 + min-height）；缺则新建入口降级为无样式文本按钮，不可辨',
+    strict: true
+  },
+  {
+    selector: '.inline-input',
+    guards: '内联命名/重命名输入框（accent 边框 + --bg-input 底）；缺则输入框在卡片中不可辨',
+    strict: true
+  },
+  {
+    selector: '.inline-confirm',
+    guards: '删除行内确认条（--danger 文字 + 危险色边框/底）；缺则确认条降级为普通文字，删除二次确认不可辨',
+    strict: true
+  },
+  {
+    selector: '.inline-actions',
+    guards: '确认条右侧动作组 flex 布局（确认/取消并排）；缺则两按钮纵向堆叠',
+    strict: true
+  },
+  {
+    // descendant 形态（空态新建卡限宽），不可标 strict。
+    selector: '.playlists-empty .new-card',
+    guards: '零歌单空态里的新建卡限宽（.browse-state 的 place-items:center 会把卡压成内容宽）；缺则卡宽度随文字抖动',
+  },
+  {
+    // descendant 形态（空态图标弱化为三级色），不可标 strict。
+    selector: '.playlists-empty .playlists-empty-icon',
+    guards: '零歌单空态图标弱化（--text-tertiary）；缺则图标过亮抢标题视觉层级',
+  },
+  {
+    // T6.2 首次落地：T4.4 起 AlbumDetail/ArtistDetail 的返回链接就引用 .button，但一直无规则。
+    selector: '.button',
+    guards: '按钮族基座（返回歌单 / 重命名 / 删除 / 浏览歌曲）；缺则这些动作降级为无样式文本，不可点辨',
+    strict: true
+  },
+  {
+    selector: '.button--quiet',
+    guards: '透明按钮变体（返回/重命名/删除确认）；缺则按钮外观退回 .button 默认底，与设计稿不符',
+    strict: true
+  },
+  {
+    selector: '.button--primary',
+    guards: '主色按钮（空歌单「浏览歌曲」）；缺则主行动点无主色，与次级按钮不可辨',
+    strict: true
+  },
+  {
+    selector: '.danger-text',
+    guards: '危险动作文字色（--danger，删除歌单/确认删除）；缺则删除动作与普通动作不可辨',
     strict: true
   }
 ]

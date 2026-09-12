@@ -104,7 +104,9 @@ test('skip-link 在非 Songs 页激活后不跳路由，焦点落到主内容（
  *   · 真实详情页（albums/:id、artists/:id）：空库无实体，用不存在的 id 直达 → notFound 空态
  *     （「未找到该专辑/艺术家」）——这本身是真实渲染分支，且证明带参路由不会死链/白屏；
  *   · 真实页（T6.1 起含 /liked）：页头标题 + 主内容区渲染（空库下 Liked 走空态，也是合法渲染）；
- *   · 占位页（playlists/recent/settings 及 /search 空查询）：占位/引导文案出现。
+ *   · 真实页（T6.2 起含 /playlists、/playlists/:id）：页头标题 + 主内容区渲染（空库下歌单页走
+ *     空态、详情页用不存在的 id 走 notFound，都是真实渲染分支）；
+ *   · 占位页（recent/settings 及 /search 空查询）：占位/引导文案出现。
  * 全程控制台无 error 级日志、无未捕获异常（pageerror）。
  * 零 http(s) 外联断言随导航全程收集（Local-first 硬约束，模式延续）。
  */
@@ -123,8 +125,10 @@ test('T4.8 逐路由矩阵：11 条路由直达渲染无异常，控制台无 er
     { hash: '#/albums/999999', title: '专辑详情', marker: '未找到该专辑' },
     { hash: '#/artists', title: '艺术家', marker: '艺术家' },
     { hash: '#/artists/999999', title: '艺术家详情', marker: '未找到该艺术家' },
-    { hash: '#/playlists', title: '歌单', marker: '页面内容将在后续任务中接入' },
-    { hash: '#/playlists/999999', title: '歌单详情', marker: '页面内容将在后续任务中接入' },
+    // T6.2：/playlists 已落地为真实「歌单」页（空库下渲染空态，页头 h2 = 我的歌单）；
+    // /playlists/:id 用不存在的 id 直达 → notFound 空态（真实渲染分支，证带参路由不死链）。
+    { hash: '#/playlists', title: '歌单', marker: '我的歌单' },
+    { hash: '#/playlists/999999', title: '歌单详情', marker: '未找到该歌单' },
     // T6.1：/liked 已落地为真实「收藏」页；空库下渲染空态（empty.liked.title）。
     { hash: '#/liked', title: '收藏', marker: '还没有收藏的歌曲' },
     { hash: '#/recent', title: '最近播放', marker: '页面内容将在后续任务中接入' },

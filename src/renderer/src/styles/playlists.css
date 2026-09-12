@@ -1,0 +1,242 @@
+/* 歌单页样式（T6.2 Playlists 网格 + T6.4 CollageCover）——自 mockup.css 按组件收口迁移。
+ *
+ * 来源：mockup.css 的 .playlist-grid / .playlist-card / .collage-cover / .new-card /
+ *   .inline-input / .inline-confirm（对照 Playlists.html、PlaylistDetail.html 的 DOM）。
+ *
+ * 迁移取舍（自文档，非整文件拷贝）：
+ *   · .card-play / .card-copy / .card-title / .card-meta / .hero* / .round-action / .page-head
+ *     已在 browse.css 落地并被专辑页复用，本文件不重复声明；只补歌单特有的选择器
+ *     （.playlist-grid / .playlist-card / .collage-cover / .new-card / .inline-* / .button 族）。
+ *   · 设计稿的色块封面变体（--night/--amber/--chopin/--blue/--plum）与 <span> 文案层依赖假数据，
+ *     一律由 CollageCover 的「前 4 首真实封面 + 占位」替代（同 cover.css 的取舍）。
+ *   · 设计稿只有单一 `.collage-cover` 的 2×2 网格；真实实现在有 canvas 时输出一张 dataURL
+ *     <img>（.collage-cover-image），无 canvas 时退回 4 个 .cover 铺格的同形 DOM——两条路径
+ *     共用同一个网格容器，故样式只写一份。
+ *   · 设计稿的 `.accent-text`（正在播放的歌单标题主色）**不迁**：M0.1 歌单无「正在播放」判定，
+ *     规则迁过来也没有消费者（死样式），待歌单播放态立案时再补。
+ *   · 本文件首次落地 `.button` / `.button--quiet` / `.button--primary` / `.danger-text` /
+ *     `.inline-actions`——T4.4 起 AlbumDetail / ArtistDetail 的返回链接已引用 `.button`，但直到
+ *     T6.2 歌单详情页才有页内可见按钮需求，故在此按设计稿逐值补齐（属补迁移，非视觉改版）。
+ *
+ * 着色一律引用 tokens（var(--*)）；内联确认条的 rgba(226,33,52,·) 是 --danger 的字面展开
+ * （mockup.css 原文如此，未 token 化，留痕）。
+ */
+
+/* ---------- 页头副标题数量 + 网格（mockup.css: 网格 928 / 935-944） ---------- */
+.playlist-grid {
+  display: grid;
+  /* 详情页（ArtistDetail 内联网格）不抢高度；Playlists 页用 .browse-scroll 包外层滚动。 */
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 24px 16px;
+  flex: 0 0 auto;
+}
+
+/* ---------- 卡片（.album-card / .playlist-card 同款外观，browse.css 未声明 .playlist-card） ---------- */
+.playlist-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+/* 卡片封面为正方形，随网格列宽伸缩（等价 .album-card 的 .cover--grid）。 */
+.playlist-card .collage-cover {
+  width: 100%;
+  aspect-ratio: 1;
+  transition: filter var(--duration-state) var(--ease-standard);
+}
+
+.playlist-card:hover .collage-cover,
+.playlist-card:focus-within .collage-cover {
+  filter: brightness(1.1);
+}
+
+/* card-play 的定位/尺寸在 browse.css（.card-play 为共享类）；此处只补歌单卡的显隐触发。 */
+.playlist-card:hover .card-play,
+.playlist-card:focus-within .card-play {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- 拼贴封面（mockup.css .collage-cover / .collage-cover .cover） ---------- */
+.collage-cover {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  overflow: hidden;
+}
+
+.collage-cover .cover {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+}
+
+/* canvas 合成结果（T6.4）：单张 dataURL 图铺满整个网格盒。 */
+.collage-cover-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---------- 新建歌单卡（mockup.css .new-card） ---------- */
+/* 未编辑时为 <button>、编辑中为 <form>：同一类名让 dashed 卡外观与网格占位一致。 */
+.new-card {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 0;
+  border: 1px dashed var(--text-tertiary);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: center;
+  transition:
+    border-color var(--duration-feedback) var(--ease-standard),
+    color var(--duration-feedback) var(--ease-standard);
+}
+
+.new-card:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.new-card--editing {
+  padding: 0 16px;
+}
+
+/* ---------- 内联输入（mockup.css .inline-input） ---------- */
+.inline-input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  outline: 0;
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+/* ---------- 内联确认条（mockup.css .inline-confirm；删除走行内确认，不弹系统对话框） ---------- */
+.inline-confirm {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 0 12px;
+  border: 1px solid rgba(226, 33, 52, 0.5);
+  border-radius: var(--radius);
+  background: rgba(226, 33, 52, 0.08);
+  color: var(--danger);
+}
+
+/* 确认条右侧动作组（设计稿把 .inline-actions 与 .state-switcher / .chip-row 并入同一组 flex 规则，
+ * 本项目只迁歌单页用到的 .inline-actions 一条——另两者在本项目无消费者）。 */
+.inline-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- 歌单详情 Hero 的拼贴封面（与 .cover--hero 同尺寸；特异度 0-2-0 覆盖 .collage-cover） ---------- */
+.collage-cover.cover--hero {
+  flex: 0 0 auto;
+  border-radius: 0;
+}
+
+/* Hero 内联重命名表单：与 h2 同处一行版位，宽度贴合标题列。 */
+.hero-rename {
+  max-width: 720px;
+}
+
+/* ---------- 空态（Playlists 页零歌单）：复用 .browse-state，仅补图标与新建卡宽度 ---------- */
+.playlists-empty .playlists-empty-icon {
+  color: var(--text-tertiary);
+}
+
+.playlists-empty .new-card {
+  width: 100%;
+  max-width: 220px;
+}
+
+/* ---------- 按钮族（mockup.css:491-540） ----------
+ * 迁移说明（留痕）：`.button` / `.button--quiet` / `.button--primary` / `.danger-text` 在
+ * T4.4 就已被 AlbumDetail / ArtistDetail 的「返回」链接引用（className="button button--quiet"），
+ * 但直到 T6.2 歌单详情页才有真正需要在页内可见的按钮（返回歌单 / 重命名 / 删除 / 浏览歌曲），
+ * 故首次在此落地这组共享规则。对既有两页的返回链接是「补齐未迁移样式」而非视觉改版——
+ * 规则逐值取自设计稿，着色一律 var(--*)。
+ */
+.button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  transition:
+    background-color var(--duration-feedback) var(--ease-standard),
+    border-color var(--duration-feedback) var(--ease-standard),
+    transform var(--duration-feedback) var(--ease-out);
+}
+
+.button:hover {
+  border-color: var(--text-tertiary);
+  background: var(--bg-hover);
+}
+
+.button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--font-weight-semibold);
+}
+
+.button--primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+/* accent 底按钮内的图标为白色/深底烘焙变体，不再被基础 0.86 不透明度压暗（设计稿同规则）。 */
+.button--primary .library-icon,
+.card-play .library-icon,
+.round-action--primary .library-icon {
+  opacity: 1;
+}
+
+.button--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.button--quiet:hover {
+  border-color: transparent;
+  background: var(--row-hover);
+  color: var(--text-primary);
+}
+
+/* 危险动作文字（删除歌单）：只改文字色，按钮外观仍走 .button--quiet。 */
+.danger-text {
+  color: var(--danger);
+}
+

@@ -14,12 +14,18 @@ import {
 // ---------------------------------------------------------------------------
 
 /** 侧栏 / 列表所需歌单行形态：自定留痕（PlayistRow 由本 repo 收口定义）。
- *  trackCount 经聚合子查询派生，非 playlists 表原列。 */
+ *  trackCount 经聚合子查询派生，非 playlists 表原列。
+ *  T6.4 增补 coverIds（同样为派生值，非表列）：拼贴封面需要列表接口就带上「前 4 首的专辑封面 id」，
+ *  否则 Playlists 页只能对每张卡再发一次 playlists:get（N+1，且每次拖回整张曲目表，浪费）。
+ *  设计决策 D-1（setting-up-plan:271）只禁止**持久化** cover 列，派生值不属于该禁令；
+ *  不足 4 首时数组更短（调用方补占位），无封面时为空数组。 */
 export interface PlaylistRow {
   id: number;
   name: string;
   description: string | null;
   trackCount: number;
+  /** 前 4 首有封面的曲目的专辑封面 id（按 position 升序，最多 4 个）。 */
+  coverIds: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -48,6 +54,16 @@ export interface PlaylistRepo {
   search(q: string): PlaylistSummary[];
 }
 
+/** 判定 better-sqlite3 外键约束异常（Phase 6 承接守卫）。
+ *  兼容两种形态：code 含 FOREIGNKEY，或 message 含 "FOREIGN KEY"。 */
+function isForeignKeyError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const code = (err as { code?: unknown }).code;
+  if (typeof code === 'string' && code.includes('FOREIGNKEY')) return true;
+  const message = (err as { message?: unknown }).message;
+  return typeof message === 'string' && /FOREIGN KEY/i.test(message);
+}
+
 export function createPlaylistRepo(db: Database): PlaylistRepo {
   // 固定 arity 的 prepared statements 在工厂内创建一次（形态对齐 trackRepo）。
   const stmtInsert = db.prepare(`
@@ -69,7 +85,18 @@ export function createPlaylistRepo(db: Database): PlaylistRepo {
     playlists.created_at                          AS createdAt,
     playlists.updated_at                          AS updatedAt,
     (SELECT COUNT(*) FROM playlist_tracks
-       WHERE playlist_tracks.playlist_id = playlists.id) AS trackCount
+       WHERE playlist_tracks.playlist_id = playlists.id) AS trackCount,
+    (SELECT group_concat(sub.cover_id, ',')
+       FROM (
+         SELECT albums.cover_id AS cover_id
+         FROM playlist_tracks
+         JOIN tracks ON tracks.id = playlist_tracks.track_id
+         JOIN albums ON albums.id = tracks.album_id
+         WHERE playlist_tracks.playlist_id = playlists.id
+           AND albums.cover_id IS NOT NULL
+         ORDER BY playlist_tracks.position ASC
+         LIMIT 4
+       ) AS sub) AS coverIds
   `;
   const stmtGet = db.prepare(`
     SELECT ${PLAYLIST_SELECT} FROM playlists WHERE playlists.id = ?
@@ -134,12 +161,19 @@ export function createPlaylistRepo(db: Database): PlaylistRepo {
   // 映射收口
   // -------------------------------------------------------------------------
 
+  /** coverIds 由 group_concat 聚合为逗号串（UUID 不含逗号，切分安全）；NULL（无封面/无曲目）→ []。 */
+  function toCoverIds(raw: unknown): string[] {
+    if (typeof raw !== 'string' || raw.length === 0) return [];
+    return raw.split(',');
+  }
+
   function mapPlaylistRow(raw: Record<string, unknown>): PlaylistRow {
     return {
       id: raw.id as number,
       name: raw.name as string,
       description: (raw.description as string | null) ?? null,
       trackCount: (raw.trackCount as number) ?? 0,
+      coverIds: toCoverIds(raw.coverIds),
       createdAt: raw.createdAt as string,
       updatedAt: raw.updatedAt as string,
     };
@@ -188,7 +222,14 @@ export function createPlaylistRepo(db: Database): PlaylistRepo {
         stmtInsertTrack.run(pid, tids[i], base + i + 1);
       }
     });
-    tx(id, trackIds);
+    try {
+      tx(id, trackIds);
+    } catch (err) {
+      // T6 承接守卫：trackIds 含不存在曲目（或歌单不存在）→ SQLite 抛 FK 约束。
+      // 原始文案 "FOREIGN KEY constraint failed" 对用户无意义，转为语义明确的友好错误。
+      if (isForeignKeyError(err)) throw new Error('addTracks: 歌单或曲目不存在');
+      throw err;
+    }
   }
 
   function removeTrack(id: number, trackId: string): void {
@@ -197,6 +238,10 @@ export function createPlaylistRepo(db: Database): PlaylistRepo {
   }
 
   function reorder(id: number, trackIds: string[]): void {
+    // T6 承接守卫：空数组视为 no-op，拒绝「整表清空」的意外擦除。
+    // 调用方（DnD 重排）始终传完整有序列表；空歌单本无曲目，no-op 与重排结果等价，
+    // 故不抛错以免破坏调用方错误路径。
+    if (trackIds.length === 0) return;
     // §3.4 注释原文语义：事务内 DELETE 全部 + 按 1..n 重插。
     // 允许 trackIds 含重复曲目（position 1..n 连续无冲突，UNIQUE 仅约束 (playlist_id, position)）。
     const tx = db.transaction((pid: number, tids: string[]) => {

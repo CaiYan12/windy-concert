@@ -154,4 +154,101 @@ describe('playlistRepo', () => {
     expect(detail.tracks.map((t) => t.id)).toEqual(['t2', 't1', 't1']);
     expect(detail.tracks.length).toBe(3);
   });
+
+  it('reorder([]) 空数组守卫：no-op，不清空既有曲目', () => {
+    current = setup();
+    const { db, playlistRepo, trackRepo } = current;
+    db.prepare(`INSERT INTO artists (id, name) VALUES (1, 'A')`).run();
+    db.prepare(`INSERT INTO albums (id, title, artist_id) VALUES (1, 'Al', 1)`).run();
+    trackRepo.createMany([
+      track({ id: 't1', title: 'Song1', artistId: 1, albumId: 1, albumArtist: 'A', albumTitle: 'Al' }),
+      track({ id: 't2', title: 'Song2', artistId: 1, albumId: 1, albumArtist: 'A', albumTitle: 'Al' }),
+    ]);
+
+    const pl = playlistRepo.create('Guard');
+    playlistRepo.addTracks(pl.id, ['t1', 't2']);
+
+    // 空数组应被守卫拦截：不清表、不抛错
+    expect(() => playlistRepo.reorder(pl.id, [])).not.toThrow();
+
+    const rows = db.prepare(`SELECT track_id, position FROM playlist_tracks WHERE playlist_id = ? ORDER BY position`).all(pl.id) as Array<{ track_id: string; position: number }>;
+    // 曲目原样保留（顺序与 position 均未变）
+    expect(rows.map((r) => r.track_id)).toEqual(['t1', 't2']);
+    expect(rows.map((r) => r.position)).toEqual([1, 2]);
+    expect(playlistRepo.list()[0].trackCount).toBe(2);
+  });
+
+  it('addTracks 传入不存在 trackId 时抛友好错误（FK 转译，非原始 SQLite 文案）', () => {
+    current = setup();
+    const { db, playlistRepo } = current;
+    db.prepare(`INSERT INTO artists (id, name) VALUES (1, 'A')`).run();
+    db.prepare(`INSERT INTO albums (id, title, artist_id) VALUES (1, 'Al', 1)`).run();
+
+    const pl = playlistRepo.create('FK');
+    expect(() => playlistRepo.addTracks(pl.id, ['does-not-exist'])).toThrow(/歌单或曲目不存在/);
+    // 事务回滚：未残留任何 playlist_tracks 行
+    const c = (db.prepare(`SELECT COUNT(*) c FROM playlist_tracks WHERE playlist_id = ?`).get(pl.id) as { c: number }).c;
+    expect(c).toBe(0);
+  });
+
+  it('addTracks 传入不存在歌单 id 时同样抛友好错误', () => {
+    current = setup();
+    const { db, playlistRepo, trackRepo } = current;
+    db.prepare(`INSERT INTO artists (id, name) VALUES (1, 'A')`).run();
+    db.prepare(`INSERT INTO albums (id, title, artist_id) VALUES (1, 'Al', 1)`).run();
+    trackRepo.createMany([track({ id: 't1', title: 'Song1', artistId: 1, albumId: 1, albumArtist: 'A', albumTitle: 'Al' })]);
+
+    expect(() => playlistRepo.addTracks(9999, ['t1'])).toThrow(/歌单或曲目不存在/);
+  });
+
+  // T6.4：列表派生值 coverIds（拼贴封面数据源；设计决策 D-1 只禁持久化 cover 列）。
+  it('list/get 派生 coverIds：按 position 取前 4 首、跳过无封面专辑、保持顺序', () => {
+    current = setup();
+    const { db, playlistRepo, trackRepo } = current;
+    db.prepare(`INSERT INTO artists (id, name) VALUES (1, 'A')`).run();
+    db.prepare(`INSERT INTO albums (id, title, artist_id, cover_id) VALUES (1, 'Al1', 1, 'cover-a')`).run();
+    db.prepare(`INSERT INTO albums (id, title, artist_id, cover_id) VALUES (2, 'Al2', 1, 'cover-b')`).run();
+    // 无封面专辑（cover_id NULL）→ 该曲目不贡献拼贴格。
+    db.prepare(`INSERT INTO albums (id, title, artist_id, cover_id) VALUES (3, 'Al3', 1, NULL)`).run();
+    trackRepo.createMany([
+      track({ id: 't1', title: 'S1', artistId: 1, albumId: 1, albumArtist: 'A', albumTitle: 'Al1' }),
+      track({ id: 't2', title: 'S2', artistId: 1, albumId: 2, albumArtist: 'A', albumTitle: 'Al2' }),
+      track({ id: 't3', title: 'S3', artistId: 1, albumId: 3, albumArtist: 'A', albumTitle: 'Al3' }),
+    ]);
+
+    const empty = playlistRepo.create('Empty');
+    expect(empty.coverIds).toEqual([]); // 空歌单无封面
+
+    playlistRepo.addTracks(empty.id, ['t1', 't2', 't3']);
+    expect(playlistRepo.list()[0].coverIds).toEqual(['cover-a', 'cover-b']);
+    expect(playlistRepo.get(empty.id).playlist?.coverIds).toEqual(['cover-a', 'cover-b']);
+  });
+
+  it('coverIds 上限 4 个，且随 reorder 顺序变化', () => {
+    current = setup();
+    const { db, playlistRepo, trackRepo } = current;
+    db.prepare(`INSERT INTO artists (id, name) VALUES (1, 'A')`).run();
+    for (let i = 1; i <= 6; i++) {
+      db.prepare(`INSERT INTO albums (id, title, artist_id, cover_id) VALUES (${i}, 'Al${i}', 1, 'c${i}')`).run();
+    }
+    trackRepo.createMany(
+      Array.from({ length: 6 }, (_, i) =>
+        track({
+          id: `t${i + 1}`,
+          title: `S${i + 1}`,
+          artistId: 1,
+          albumId: i + 1,
+          albumArtist: 'A',
+          albumTitle: `Al${i + 1}`,
+        }),
+      ),
+    );
+
+    const pl = playlistRepo.create('Many');
+    playlistRepo.addTracks(pl.id, ['t1', 't2', 't3', 't4', 't5', 't6']);
+    expect(playlistRepo.list()[0].coverIds).toEqual(['c1', 'c2', 'c3', 'c4']); // 上限 4
+
+    playlistRepo.reorder(pl.id, ['t6', 't5', 't4', 't3', 't2', 't1']);
+    expect(playlistRepo.list()[0].coverIds).toEqual(['c6', 'c5', 'c4', 'c3']);
+  });
 });

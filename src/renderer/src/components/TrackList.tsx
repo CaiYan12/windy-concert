@@ -75,6 +75,11 @@ interface TrackHeaderRowProps {
    * 「aria-sort="ascending" 但用户无法改序」的失真。
    */
   sortable?: boolean
+  /**
+   * T6.3：可拖拽模式——表头首列多出一个 sr-only「拖拽」列（设计稿 PlaylistDetail.html:9），
+   * 与数据行首列的手柄格对齐（列数差一即全表错位）。
+   */
+  draggable?: boolean
 }
 
 /** 表头行：sortable 时可排序列渲染 .sort-button、当前列显示 12px chevron（icons.md）；
@@ -84,7 +89,8 @@ export function TrackHeaderRow({
   order,
   onSortChange,
   sortDegraded = false,
-  sortable = true
+  sortable = true,
+  draggable = false
 }: TrackHeaderRowProps): ReactElement {
   const { t } = useI18n()
   return (
@@ -92,6 +98,12 @@ export function TrackHeaderRow({
       className={sortDegraded ? 'track-row track-row--head is-sort-degraded' : 'track-row track-row--head'}
       role="row"
     >
+      {draggable ? (
+        // T6.3：与数据行首列手柄格对位的 sr-only 列头（设计稿原文 `<span class="sr-only">拖拽</span>`）。
+        <div className="track-cell" role="columnheader">
+          <span className="sr-only">{t('playlists.dragHint')}</span>
+        </div>
+      ) : null}
       {TRACK_COLUMNS.map((col) => {
         const isSorted = sortable && col.sortKey !== undefined && col.sortKey === sortBy
         // 不可排序表头不输出 aria-sort（含 none）——排序语义整体缺席，而非「当前列无序」。
@@ -194,6 +206,19 @@ export interface TrackListProps {
   playlists?: readonly PlaylistSummary[]
   onAddToPlaylist?: (track: TrackRow, playlistId: number) => void
   onCreatePlaylist?: (track: TrackRow) => void
+  /**
+   * T6.3：行可拖拽重排（默认 false）。true → 表头与数据行首列各多出一个拖拽格
+   * （表头 sr-only「拖拽」+ 行内 grip-vertical 手柄），行挂 draggable="true" 与 .drag-row。
+   * 拖拽语义为**插入到目标行上缘**（applyTrackOrder）；落位后经 onReorder 外抛。
+   */
+  draggable?: boolean
+  /** T6.3：拖拽落位 → (fromIndex, toIndex) 行内 index，消费方据此重排并持久化。 */
+  onReorder?: (fromIndex: number, toIndex: number) => void
+  /**
+   * T6.2：从歌单移除该曲目。提供时右键菜单末尾追加「从歌单中移除」项
+   * （仅歌单详情页传入；其它上下文不传，菜单保持原四组）。
+   */
+  onRemoveFromPlaylist?: (track: TrackRow) => void
 }
 
 export function TrackList({
@@ -215,18 +240,56 @@ export function TrackList({
   onUnplayableActivate,
   playlists = [],
   onAddToPlaylist,
-  onCreatePlaylist
+  onCreatePlaylist,
+  draggable = false,
+  onReorder,
+  onRemoveFromPlaylist
 }: TrackListProps): ReactElement {
   const { t } = useI18n()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; track: TrackRow } | null>(null)
   // I4：记录打开菜单的触发行，菜单关闭后归还焦点（键盘用户不迷失位置）。
   const menuTriggerRef = useRef<HTMLElement | null>(null)
+  // T6.3：拖拽状态（源行 index / 当前悬停的目标行 index）。null = 无拖拽。
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  // 源行 index 的 ref 镜像：dragover/drop/dragend 处理器需读最新值，但又不能把 dragIndex
+  // 放进 useCallback 依赖（否则每次拖动都重建 itemContent，行整批重渲染）。
+  const dragIndexRef = useRef<number | null>(null)
 
   const closeMenu = useCallback(() => {
     setMenu(null)
     menuTriggerRef.current?.focus()
   }, [])
+
+  /** T6.3：拖拽结束（落位或取消）→ 清空两个 index；drop 分支读落位目标行 index。 */
+  const endDrag = useCallback(() => {
+    dragIndexRef.current = null
+    setDragIndex(null)
+    setDropIndex(null)
+  }, [])
+
+  const handleDragStart = useCallback((index: number) => {
+    dragIndexRef.current = index
+    setDragIndex(index)
+    setDropIndex(null)
+  }, [])
+
+  const handleDragOver = useCallback((index: number) => {
+    // 悬停在源行上不显示插入线（无位移语义，也是 applyTrackOrder 的 no-op 情形）。
+    if (index === dragIndexRef.current) return
+    setDropIndex(index)
+  }, [])
+
+  const handleDrop = useCallback(
+    (index: number) => {
+      const from = dragIndexRef.current
+      endDrag()
+      if (from === null || from === index) return
+      onReorder?.(from, index)
+    },
+    [endDrag, onReorder]
+  )
 
   // itemContent 用 useCallback + computeItemKey 用 id：行复用时不丢 React 身份（virtuoso 建议形态）。
   const itemContent = useCallback(
@@ -247,6 +310,14 @@ export function TrackList({
           onActivate={onActivate}
           onUnplayableActivate={onUnplayableActivate}
           onToggleFavorite={onToggleFavorite}
+          draggable={draggable}
+          dragState={
+            dragIndex === index ? 'dragging' : dropIndex === index ? 'drop-target' : null
+          }
+          onDragStartRow={handleDragStart}
+          onDragOverRow={handleDragOver}
+          onDropRow={handleDrop}
+          onDragEndRow={endDrag}
           onOpenMenu={(event, t2) => {
             menuTriggerRef.current = event.currentTarget as HTMLElement
             setSelectedId(t2.id)
@@ -255,10 +326,36 @@ export function TrackList({
         />
       )
     },
-    [playingTrackId, selectedId, onActivate, onUnplayableActivate, onToggleFavorite, favoriteIds]
+    [
+      playingTrackId,
+      selectedId,
+      onActivate,
+      onUnplayableActivate,
+      onToggleFavorite,
+      favoriteIds,
+      draggable,
+      dragIndex,
+      dropIndex,
+      handleDragStart,
+      handleDragOver,
+      handleDrop,
+      endDrag
+    ]
   )
 
-  const computeItemKey = useCallback((index: number) => songs[index]?.id ?? index, [songs])
+  /**
+   * 行键：默认用曲目 id（利于重排/排序时的行身份稳定）。
+   * T6.3 例外：歌单**允许同一曲目多次入单**（repo 的 reorder/addTracks 语义），纯 id 键会碰撞
+   * （React 报重复 key、virtuoso 复用错行）→ 可拖拽模式叠加行内 index 保证唯一。
+   */
+  const computeItemKey = useCallback(
+    (index: number) => {
+      const track = songs[index]
+      if (!track) return index
+      return draggable ? `${track.id}#${index}` : track.id
+    },
+    [songs, draggable]
+  )
 
   // I1：error 存在时表头排序指示降级（数据可能未按当前排序刷新）。
   const sortDegraded = error != null
@@ -272,10 +369,11 @@ export function TrackList({
           onSortChange={onSortChange}
           sortDegraded={sortDegraded}
           sortable={sortable}
+          draggable={draggable}
         />
       )
     }),
-    [sortBy, order, onSortChange, sortDegraded, sortable]
+    [sortBy, order, onSortChange, sortDegraded, sortable, draggable]
   )
 
   const rootStyle =
@@ -284,7 +382,7 @@ export function TrackList({
   return (
     <div className={className ? `track-list ${className}` : 'track-list'} style={rootStyle}>
       <div
-        className="track-table"
+        className={draggable ? 'track-table track-table--draggable' : 'track-table'}
         role="table"
         aria-label={t('songs.tableLabel')}
         aria-rowcount={songs.length}
@@ -314,6 +412,7 @@ export function TrackList({
               onSortChange={onSortChange}
               sortDegraded={sortDegraded}
               sortable={sortable}
+              draggable={draggable}
             />
             <div className="track-list-state">
               {error ? (
@@ -346,6 +445,7 @@ export function TrackList({
           onToggleFavorite={onToggleFavorite}
           onAddToPlaylist={onAddToPlaylist}
           onCreatePlaylist={onCreatePlaylist}
+          onRemoveFromPlaylist={onRemoveFromPlaylist}
         />
       )}
     </div>

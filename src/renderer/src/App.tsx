@@ -13,6 +13,9 @@ import './styles/browse.css'
 // T6.1：Liked 页样式（第二处获准渐变 .hero--liked + 排序下拉）。必须在 browse.css 之后——
 // .hero--liked 需覆盖 .hero 的 min-height（同特异性，靠源码顺序取胜，见 liked.css 头注释）。
 import './styles/liked.css'
+// T6.2/T6.4：歌单页（Playlists 网格 + 拼贴封面 + 内联命名/确认条 + 详情页 Hero 拼贴）。
+// 必须在 browse.css 之后——.playlist-card / .collage-cover 需在卡片与 .hero 基底之上生效。
+import './styles/playlists.css'
 // T4.5：搜索（SearchBox 下拉 + SearchResults 结果页 + 紧凑曲目表列格）。
 // 必须在 tracklist.css 之后加载：.track-table--compact .track-row 与 .track-table .track-row
 // 同特异性（0-2-0），靠后加载覆盖为 6 列格（见 search.css 文件头说明）。

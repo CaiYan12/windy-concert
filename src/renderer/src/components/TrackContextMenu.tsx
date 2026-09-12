@@ -37,6 +37,11 @@ export interface TrackContextMenuProps {
   onToggleFavorite?: (track: TrackRow, next: boolean) => void
   onAddToPlaylist?: (track: TrackRow, playlistId: number) => void
   onCreatePlaylist?: (track: TrackRow) => void
+  /**
+   * T6.2：从当前歌单移除该曲目。**仅在歌单详情页传入**——其余上下文（Songs/专辑/艺术家/搜索/
+   * 收藏）没有「所属歌单」语义，传 undefined 时菜单保持原四组（不给用户一个点了没反应的入口）。
+   */
+  onRemoveFromPlaylist?: (track: TrackRow) => void
 }
 
 export function TrackContextMenu({
@@ -49,7 +54,8 @@ export function TrackContextMenu({
   onEnqueue,
   onToggleFavorite,
   onAddToPlaylist,
-  onCreatePlaylist
+  onCreatePlaylist,
+  onRemoveFromPlaylist
 }: TrackContextMenuProps): ReactElement {
   const { t } = useI18n()
   const menuRef = useRef<HTMLDivElement>(null)
@@ -236,6 +242,23 @@ export function TrackContextMenu({
           </button>
         )
       )}
+
+      {/* T6.2：从歌单中移除（仅歌单详情页传入）。工具函数 trackMenuItems 保持「固定四组」的
+          纯函数语义（其单测锚定四组），故此上下文相关的第五项在渲染层追加——键盘轮转经
+          visibleItems() 的 [role="menuitem"] 全查，无需额外接线即自动纳入。 */}
+      {onRemoveFromPlaylist ? (
+        <button
+          className="context-item"
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onRemoveFromPlaylist(track)
+            onClose()
+          }}
+        >
+          <span>{t('menu.removeFromPlaylist')}</span>
+        </button>
+      ) : null}
     </div>
   )
 }

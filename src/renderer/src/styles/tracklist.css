@@ -117,6 +117,13 @@
   grid-template-columns: 44px 40px minmax(200px, 2fr) 1fr 1fr 64px 56px 72px 110px 28px;
 }
 
+/* T6.3：可拖拽变体（PlaylistDetail）在首列插入 28px 手柄格（列宽见 mockup.css .drag-handle）。
+ * 必须紧随上行声明（同为 0-2-0），且**必须排在文件尾的两个响应式媒体查询之前**——
+ * 否则尾部的本规则会反过来压掉媒体查询里的窄屏列宽（同特异性靠源码顺序取胜）。 */
+.track-table--draggable .track-row {
+  grid-template-columns: 28px 44px 40px minmax(200px, 2fr) 1fr 1fr 64px 56px 72px 110px 28px;
+}
+
 /* 表头：随滚动区一起排布（保持与数据行同宽），sticky 常驻顶部。 */
 .track-row--head {
   position: sticky;
@@ -365,6 +372,11 @@
   .track-table .track-row {
     grid-template-columns: 44px 40px minmax(200px, 2fr) 1fr 1fr 64px 56px 110px 28px;
   }
+
+  /* T6.3：可拖拽变体同步去掉比特率列（首列 28px 手柄 + 原 9 列）。 */
+  .track-table--draggable .track-row {
+    grid-template-columns: 28px 44px 40px minmax(200px, 2fr) 1fr 1fr 64px 56px 110px 28px;
+  }
 }
 
 @media (max-width: 1000px) {
@@ -375,4 +387,67 @@
   .track-table .track-row {
     grid-template-columns: 44px 40px minmax(200px, 2fr) 1fr 1fr 64px 56px 28px;
   }
+
+  /* T6.3：可拖拽变体同步去掉规格列。 */
+  .track-table--draggable .track-row {
+    grid-template-columns: 28px 44px 40px minmax(200px, 2fr) 1fr 1fr 64px 56px 28px;
+  }
+}
+
+/* ---------- T6.3 拖拽重排（PlaylistDetail；对照 mockup.css 的 .drag-row / .drag-handle） ---------- */
+/* 可拖拽模式在每行首列插入一个 28px 手柄格（设计稿 PlaylistDetail.html:9 的首列是
+ * `<span class="sr-only">拖拽</span>` 表头 + `.drag-handle > grip-vertical` 行内手柄）。
+ * 表头与数据行都必须多出这一列，否则 11 格行套 10 列模板、列错位不可读（同 .track-table--compact 的教训）。
+ * 列宽声明在文件上方 .track-table .track-row 之后（须位于媒体查询之前，见该处注释）。 */
+.track-table--draggable {
+  min-width: 938px;
+}
+
+.drag-row {
+  position: relative;
+}
+
+/* 拖拽首列格（与 .drag-handle 同宽，居中显示手柄）。 */
+.track-cell--drag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 拖起源行 60% 透明（mockup.css .drag-row.is-dragging）。 */
+.drag-row.is-dragging {
+  opacity: 0.6;
+}
+
+/* 目标行插入线：2px 主色。**偏离留痕**：mockup.css 的 .is-drop-target::before 用 `bottom: -1px`
+ * （线压在目标行下缘），而设计说明文字（PlaylistDetail.html:9「目标行上缘出现 2px 主色插入线」）
+ * 与本任务验收口径均要求「上缘」。二者冲突处从**设计说明文字 + 本任务验收**，改 top: -1px，
+ * 与 applyTrackOrder 的「插入到目标行之前」语义一致（见 playlistsStore.applyTrackOrder）。 */
+.drag-row.is-drop-target::before {
+  position: absolute;
+  top: -1px;
+  right: 8px;
+  left: 8px;
+  height: 2px;
+  background: var(--accent);
+  content: '';
+}
+
+/* 手柄（mockup.css .drag-handle）。color 对 <img> 无效（C1 铁律：Icon 渲染 <img>，stroke 已烘焙），
+ * 三级色改由 .library-icon 的默认 .6 不透明度表达，hover 提亮到 .92。 */
+.drag-handle {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: var(--text-tertiary);
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle:hover .library-icon {
+  opacity: 0.92;
 }
