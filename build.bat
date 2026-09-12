@@ -10,7 +10,7 @@ if errorlevel 8 goto :err
 echo BUILD OK: build\Windy Concert.exe
 goto :eof
 :zip
-powershell -NoProfile -Command "Compress-Archive -Path 'build\*' -DestinationPath ('Windy-Concert-' + (Get-Content package.json ^| ConvertFrom-Json).version + '-win64.zip') -Force"
+powershell -NoProfile -Command "Compress-Archive -Path 'build\*' -DestinationPath ('Windy-Concert-' + (Get-Content package.json | ConvertFrom-Json).version + '-win64.zip') -Force"
 goto :eof
 :err
 echo BUILD FAILED
