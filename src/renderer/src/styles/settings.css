@@ -1,0 +1,210 @@
+/* T7.1~T7.5 Settings 页 —— 对照 mockups/Settings.html + mockup.css 的 settings-layout 区
+ * （mockup.css:1425-1620 收口迁移）。
+ *
+ * 承载语义关键类（登记于 tests/unit/renderer/css-contract.test.ts）：
+ *   · .settings-layout —— 左导航 + 右内容双列网格；缺则锚点导航与分区纵向堆叠不可辨。
+ *   · .settings-nav / .settings-nav button[aria-current] —— 分区锚点导航（设计稿为 <a>
+ *     页内锚点，HashRouter 下改 button + scrollIntoView，见 Settings.tsx 头注留痕）。
+ *   · .settings-section / .setting-row / .setting-label / .setting-help —— 分区与设置行骨架。
+ *   · .settings-select —— 语言下拉盒（对照 mockup.css .sort-control select 形态）。
+ *   · .pill / .version —— Playback 音量只读回显徽标 / About 版本号（mono）。
+ *   · .about-list —— §8 已知限制八条列表（左缘线形态）。
+ *   · .switch / .progress-track / .progress-fill —— T7.3 样式基建（40×22 开关、
+ *     --bg-input 进度槽，mockup.css 原样迁移）；本批 Settings 页尚不渲染这两类控件，
+ *     故暂不登记 css-contract（登记表只收「组件会渲染的类名」，T7.3 落地时补登）。
+ *
+ * 加载顺序：App.tsx 在 browse.css 之后引入——.settings-section h2 等依赖全局排版，
+ * .section-heading 复用 browse.css 已有规则（本文件不重复定义）。
+ */
+
+/* ---------- 双列骨架（mockup.css:1425-1431） ---------- */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 640px);
+  gap: 40px;
+  align-items: start;
+}
+
+/* ---------- 分区锚点导航（mockup.css:1432-1460；<a> → button 的必要偏离） ---------- */
+.settings-nav {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 2px;
+}
+
+.settings-nav button {
+  position: relative;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  font-size: inherit;
+}
+
+.settings-nav button:hover {
+  color: var(--text-primary);
+}
+
+.settings-nav button[aria-current='true'] {
+  color: var(--text-primary);
+}
+
+.settings-nav button[aria-current='true']::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -12px;
+  width: 3px;
+  background: var(--accent);
+  content: '';
+}
+
+/* ---------- 分区（mockup.css:1462-1478） ---------- */
+.settings-section {
+  padding-bottom: 34px;
+}
+
+.settings-section + .settings-section {
+  padding-top: 34px;
+  border-top: 1px solid var(--divider);
+}
+
+.settings-section h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.settings-section > p {
+  margin: 4px 0 18px;
+  color: var(--text-secondary);
+}
+
+/* ---------- 设置行（mockup.css:1480-1504） ---------- */
+.setting-row {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 8px 0;
+}
+
+.setting-copy {
+  min-width: 0;
+}
+
+.setting-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.setting-help {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- 语言下拉（对照 mockup.css .sort-control / .sort-control select 形态） ---------- */
+.settings-select {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.settings-select:disabled option[disabled] {
+  color: var(--text-tertiary);
+}
+
+/* ---------- 徽标 / 版本号（mockup.css:603-613 / :98-100；.pill 首次落地渲染端样式） ---------- */
+.pill {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-round);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.version {
+  font-family: var(--font-mono);
+}
+
+/* ---------- About 已知限制列表（mockup.css:1591-1602） ---------- */
+.about-list {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.about-list li {
+  padding-left: 14px;
+  border-left: 2px solid var(--divider);
+  color: var(--text-secondary);
+}
+
+/* ---------- T7.3 样式基建（本批不渲染、不登记 css-contract，见文件头） ---------- */
+/* 40×22 开关（mockup.css:1506-1541；button[aria-checked] 形态与 mockup data-switch 一致） */
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 40px;
+  height: 22px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-round);
+  background: var(--bg-input);
+  cursor: pointer;
+  transition: background-color var(--duration-feedback) var(--ease-standard);
+}
+
+.switch::after {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  content: '';
+  transition:
+    transform var(--duration-feedback) var(--ease-out),
+    background-color var(--duration-feedback) var(--ease-standard);
+}
+
+.switch[aria-checked='true'] {
+  background: var(--accent);
+}
+
+.switch[aria-checked='true']::after {
+  background: var(--on-accent);
+  transform: translateX(18px);
+}
+
+/* 扫描进度槽（--bg-input 槽 + fill 条，mockup.css .progress-track / .progress-fill 同形态） */
+.progress-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-round);
+  background: var(--bg-input);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+}

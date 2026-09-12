@@ -54,6 +54,11 @@ export interface RegisterIpcDeps {
   dialog?: Dialog;
   /** handler 注册器；默认 ipcMain.handle（测试注入内存 registrar 收集 handler map，留痕）。 */
   handleRegistrar?: HandleRegistrar;
+  /**
+   * T7.5：应用版本号来源（app:getVersion）。默认 electron app.getVersion()（惰性 require，
+   * 测试不加载 electron）；测试注入桩直接断言转发。
+   */
+  getAppVersion?: () => string;
 }
 
 /** handler 函数形态：(event, payload) => result | Promise<result>。 */
@@ -356,6 +361,10 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
     }
     return settingsStore.set(p);
   });
+
+  // ---- 应用信息（T7.5）----
+  // 版本号只读转发：默认 electron app.getVersion()（惰性 require，测试注入 getAppVersion 桩）。
+  register(IPC.CHANNELS.APP_GET_VERSION, () => (deps.getAppVersion ?? (() => getElectron().app.getVersion()))());
 
   // ---- i18n（T3.5 资源文件尚未交付：缺失返回 {}，留痕）----
   // lang 白名单：仅允许 BCP-47 风格语言标签（zh / zh-CN / en-US 等），

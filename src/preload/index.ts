@@ -69,6 +69,11 @@ const api = {
   i18n: {
     getMessages: (lang: string) => invoke(IPC.CHANNELS.I18N_GET_MESSAGES, { lang }),
   },
+  // T7.5：应用信息（命名空间留痕：版本号属应用级元信息，不属 settings 业务域，
+  // 单列 app 分组——后续 app 级信息（如平台/路径）有自然归属点）。
+  app: {
+    getVersion: () => invoke(IPC.CHANNELS.APP_GET_VERSION),
+  },
   onScanProgress(cb: (p: ScanProgress) => void): () => void {
     const listener = (_event: Electron.IpcRendererEvent, p: ScanProgress): void => cb(p)
     ipcRenderer.on(IPC.CHANNELS.SCAN_PROGRESS, listener)

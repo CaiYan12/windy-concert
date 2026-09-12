@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { useI18n } from '../../i18n'
 import { Icon } from '../Icon'
 import { Cover } from '../Cover'
-import { usePlayer } from '../../stores/playerStore'
+import { useQueueView } from '../../stores/playerStore'
 import type { TrackRow } from '../../../../shared/types'
 
 /**
@@ -79,7 +79,9 @@ function QueueRow({
 
 export function QueuePanel({ open, onClose }: QueuePanelProps): ReactElement {
   const { t } = useI18n()
-  const { queueView } = usePlayer()
+  // T7.1 承接：改用 queueView 选择器——只订阅三段视图引用，不随 250ms position tick
+  // 重渲整面板（见 playerStore.useQueueView 注释；渲染输出不变）。
+  const queueView = useQueueView()
   const { current, upNextUserQueue, upNextRest } = queueView
   const empty = current === null && upNextUserQueue.length === 0 && upNextRest.length === 0
 

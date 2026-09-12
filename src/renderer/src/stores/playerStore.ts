@@ -438,3 +438,17 @@ export function usePlayingTrackId(): string | undefined {
   const selector = (): string | undefined => usePlayerStore.getState().currentTrack?.id ?? undefined
   return useSyncExternalStore(usePlayerStore.subscribe, selector, selector);
 }
+
+/**
+ * T7.1 承接：队列视图三段数据选择器（QueuePanel 专用）。
+ * QueuePanel 只消费 queueView，却曾用 usePlayer() 订阅整态——随 250ms position 节流刷新
+ * 整面板重渲（行内容不变的无谓渲染）。本钩子只返回 queueView 键持有的对象引用：
+ * position tick 仅 set({ position })，queueView 引用不变，useSyncExternalStore 以
+ * Object.is 判定不触发重渲；仅队列/推进相关状态变更（computeQueueView 写入新对象）才重渲。
+ * queueView 数据形状不变（QueueView），QueuePanel.test 的注入断言不受影响。
+ * getServerSnapshot 与 getSnapshot 一致（同 usePlayer 留痕：显式 getState() 保证 node 可测）。
+ */
+export function useQueueView(): QueueView {
+  const selector = (): QueueView => usePlayerStore.getState().queueView
+  return useSyncExternalStore(usePlayerStore.subscribe, selector, selector);
+}

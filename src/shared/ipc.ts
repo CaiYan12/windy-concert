@@ -60,6 +60,8 @@ export const IPC = {
     SETTINGS_GET: 'settings:get',
     SETTINGS_SET: 'settings:set',
     I18N_GET_MESSAGES: 'i18n:getMessages',
+    // T7.5：应用版本号只读通道（About 分区渲染用；additive，零 payload）。
+    APP_GET_VERSION: 'app:getVersion',
   },
 } as const;
 
@@ -101,6 +103,7 @@ export interface IpcPayloads {
   'settings:get': void;
   'settings:set': Partial<Settings>;
   'i18n:getMessages': { lang: string };
+  'app:getVersion': void;
 }
 
 /** 每个 channel 的返回形态（invoke 解析值）。 */
@@ -137,6 +140,8 @@ export interface IpcReturns {
   'settings:get': Settings;
   'settings:set': Settings;
   'i18n:getMessages': Record<string, string>;
+  /** T7.5：应用版本号（main 侧 app.getVersion()，来源 package.json version）。 */
+  'app:getVersion': string;
 }
 
 // 仅用于类型层占位说明：PlaylistSummary 在搜索返回中复用（§3.6 library:search）。

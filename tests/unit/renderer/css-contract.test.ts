@@ -42,6 +42,7 @@ const STYLE_FILES = [
   'src/renderer/src/styles/playlists.css',
   'src/renderer/src/styles/search.css',
   'src/renderer/src/styles/recent.css',
+  'src/renderer/src/styles/settings.css',
   'src/renderer/src/styles/shell.css',
   'src/renderer/src/styles/toast.css'
 ] as const;
@@ -440,6 +441,62 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
     // descendant 形态（空态图标弱化），不可标 strict。
     selector: '.recent-empty .recent-empty-icon',
     guards: '零播放记录空态图标弱化（--text-tertiary 观感）；缺则图标过亮抢标题视觉层级'
+  },
+  // --- T7.1~T7.5 Settings 页（settings.css）语义关键类 ---
+  {
+    selector: '.settings-layout',
+    guards: '设置页双列骨架（左锚点导航 168px + 右内容 640px）；缺则导航与分区纵向堆叠不可辨',
+    strict: true
+  },
+  {
+    selector: '.settings-nav',
+    guards: '分区锚点导航容器（sticky 定位锚；HashRouter 下 button+scrollIntoView 替代页内锚点，见 Settings.tsx 留痕）；缺则四分区无导航入口',
+    strict: true
+  },
+  {
+    // descendant+属性形态（高亮规则为 .settings-nav button[aria-current='true'] 及其 ::before），不可标 strict。
+    selector: ".settings-nav button[aria-current='true']",
+    guards: '当前分区高亮（accent 左缘指示条 ::before）；缺则锚点导航当前位不可辨'
+  },
+  {
+    selector: '.settings-section',
+    guards: '分区容器（间距 + 分隔线）；缺则四分区贴叠不可辨读',
+    strict: true
+  },
+  {
+    selector: '.setting-row',
+    guards: '设置行骨架（标签 + 控件两端对齐）；缺则行塌陷为流式文本',
+    strict: true
+  },
+  {
+    selector: '.setting-label',
+    guards: '设置项标题（semibold）；缺则标题与帮助文案无层级',
+    strict: true
+  },
+  {
+    selector: '.setting-help',
+    guards: '设置项帮助文案（--text-secondary / sm）；缺则说明与标题混排',
+    strict: true
+  },
+  {
+    selector: '.settings-select',
+    guards: '语言下拉盒（--bg-input 底 + 边框锚点）；缺则下拉降级为原生裸控件不可辨',
+    strict: true
+  },
+  {
+    selector: '.pill',
+    guards: '音量默认值只读回显徽标（round 边框盒）；缺则百分比降级为裸文本',
+    strict: true
+  },
+  {
+    selector: '.version',
+    guards: 'About 版本号（mono 字体）；缺则版本与正文不可辨',
+    strict: true
+  },
+  {
+    selector: '.about-list',
+    guards: '已知限制八条列表容器（grid 间距）；缺则条目贴叠',
+    strict: true
   }
 ]
 

@@ -20,7 +20,7 @@ import type {
 } from '../../src/shared/types'
 
 describe('window.api 契约类型锁（expectTypeOf）', () => {
-  it('顶层分组齐全：8 个键（6 方法分组 + 2 事件订阅）逐一锁定', () => {
+  it('顶层分组齐全：9 个键（7 方法分组 + 2 事件订阅）逐一锁定（T7.5 起 +app）', () => {
     expectTypeOf<keyof Api>().toEqualTypeOf<
       | 'library'
       | 'favorites'
@@ -28,6 +28,7 @@ describe('window.api 契约类型锁（expectTypeOf）', () => {
       | 'history'
       | 'settings'
       | 'i18n'
+      | 'app'
       | 'onScanProgress'
       | 'onCoversReady'
     >()
@@ -95,6 +96,11 @@ describe('window.api 契约类型锁（expectTypeOf）', () => {
     expect(true).toBe(true)
   })
 
+  it('app：getVersion 只读返回 string（T7.5 About 分区版本号渲染用）', () => {
+    expectTypeOf<Api['app']['getVersion']>().toEqualTypeOf<() => Promise<string>>()
+    expect(true).toBe(true)
+  })
+
   it('事件订阅：onScanProgress / onCoversReady 返回 () => void（unsubscribe）', () => {
     expectTypeOf<Api['onScanProgress']>().toEqualTypeOf<
       (cb: (p: ScanProgress) => void) => () => void
@@ -137,6 +143,7 @@ describe('window.api 契约类型锁（expectTypeOf）', () => {
     >()
     expectTypeOf<keyof Api['settings']>().toEqualTypeOf<'get' | 'set'>()
     expectTypeOf<keyof Api['i18n']>().toEqualTypeOf<'getMessages'>()
+    expectTypeOf<keyof Api['app']>().toEqualTypeOf<'getVersion'>()
     expect(true).toBe(true)
   })
 

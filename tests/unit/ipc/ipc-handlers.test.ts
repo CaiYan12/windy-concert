@@ -80,6 +80,8 @@ function makeCtx(): Ctx {
     getFolders: () => folders,
     dialog: dialogStub,
     handleRegistrar: registrar,
+    // T7.5：app:getVersion 版本来源桩（默认路径走 electron app.getVersion，测试不加载 electron）。
+    getAppVersion: () => '9.9.9-test',
   });
 
   const call = <T = unknown>(channel: string, payload?: unknown): T => {
@@ -440,5 +442,9 @@ describe('registerIpcHandlers', () => {
     expect(() => ctx.call(IPC.CHANNELS.I18N_GET_MESSAGES, { lang: '../evil' })).toThrow(/非法 lang/);
     // 空段 / 非法字符同样被白名单拒绝
     expect(() => ctx.call(IPC.CHANNELS.I18N_GET_MESSAGES, { lang: 'zh--../../x' })).toThrow(/非法 lang/);
+  });
+
+  it('app:getVersion → 透传注入的版本来源（T7.5，零 payload 只读）', () => {
+    expect(ctx.call<string>(IPC.CHANNELS.APP_GET_VERSION, {})).toBe('9.9.9-test');
   });
 });
