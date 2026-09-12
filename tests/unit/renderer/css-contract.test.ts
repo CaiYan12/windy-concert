@@ -41,6 +41,7 @@ const STYLE_FILES = [
   'src/renderer/src/styles/liked.css',
   'src/renderer/src/styles/playlists.css',
   'src/renderer/src/styles/search.css',
+  'src/renderer/src/styles/recent.css',
   'src/renderer/src/styles/shell.css',
   'src/renderer/src/styles/toast.css'
 ] as const;
@@ -423,6 +424,22 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
     selector: '.danger-text',
     guards: '危险动作文字色（--danger，删除歌单/确认删除）；缺则删除动作与普通动作不可辨',
     strict: true
+  },
+  // --- T6.5 Recent 页（recent.css）语义关键类 ---
+  {
+    selector: '.track-table--recent',
+    guards: '最近播放轻量表容器（620px 最小宽覆盖基座十列表的 900px）；缺则 6 列表被撑出无谓横向滚动',
+    strict: true
+  },
+  {
+    // descendant 形态（覆盖 .track-table .track-row 的十列格），不可标 strict。
+    selector: '.track-table--recent .track-row',
+    guards: '最近播放表 6 列格（封面/标题/艺术家/专辑/播放时间/状态，对照 mockup.css）；缺则 6 格行套 10 列模板，列错位不可读'
+  },
+  {
+    // descendant 形态（空态图标弱化），不可标 strict。
+    selector: '.recent-empty .recent-empty-icon',
+    guards: '零播放记录空态图标弱化（--text-tertiary 观感）；缺则图标过亮抢标题视觉层级'
   }
 ]
 

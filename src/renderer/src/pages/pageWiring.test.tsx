@@ -18,9 +18,14 @@ import { act, type ReactElement } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TrackRow } from '../../../shared/types'
+import type { PlaylistRow } from '../../../main/database/repositories/playlistRepo'
 import { usePlayerStore } from '../stores/playerStore'
 import { useToastStore } from '../stores/toastStore'
 import { browseApiData, flushBrowse, installSentinelI18n, mountPage, resetBrowseApiData } from './browseFixtures'
+// 注意顺序：playlistsStore（经 toErrorMessage → ipc/client）必须在 browseFixtures 之后 import——
+// client.ts 在模块求值时捕获 window.api，先于夹具求值会把 api 钉成 undefined，炸掉
+// AlbumDetail/ArtistDetail 的 useBrowseData（实测留痕）。
+import { usePlaylistsStore } from '../stores/playlistsStore'
 import { AlbumDetail } from './AlbumDetail'
 import { ArtistDetail } from './ArtistDetail'
 import { DEFAULT_LIBRARY_PARAMS, useLibraryStore } from '../stores/libraryStore'
@@ -134,6 +139,15 @@ beforeEach(() => {
   useLibraryStore.setState({ songs: [], loading: false, error: null, params: { ...DEFAULT_LIBRARY_PARAMS } })
   // 隔离播放态：每个用例默认无当前曲目，避免跨例串扰（T5.7 缺口②高亮用例显式 set）。
   usePlayerStore.setState({ currentTrack: null })
+  // T6.6 前置：隔离歌单切片（usePlaylistMenu 挂载即 ensureLoaded；listLoaded=false 基线
+  // 会让其空转，用例自行播种 playlists + listLoaded=true 提供子菜单数据源）。
+  usePlaylistsStore.setState({
+    playlists: [],
+    listLoading: false,
+    listError: null,
+    listLoaded: false,
+    creating: false
+  })
 })
 
 afterEach(() => {
@@ -348,8 +362,132 @@ describe('AlbumDetail 页接线（T5.6）', () => {
 })
 
 // ---------------------------------------------------------------------------
-// ArtistDetail 页
+// T6.6 前置：四页「添加到歌单」子菜单接线（Songs / AlbumDetail / ArtistDetail 在本文件，
+// Liked 在 Liked.test.tsx）——接线矩阵：子菜单数据源 = playlistsStore 列表；点歌单项 →
+// addTracks(id, [track.id]) + toast；点「新建歌单」→ create(默认名) → addTracks。
 // ---------------------------------------------------------------------------
+
+/** 播种歌单列表切片 + 监听写动作（页面经 usePlaylistMenu 间接消费）。 */
+function seedPlaylistsAndSpies(): {
+  addTracks: ReturnType<typeof vi.fn>
+  create: ReturnType<typeof vi.fn>
+  showToast: ReturnType<typeof vi.fn>
+} {
+  const rows: PlaylistRow[] = [
+    { id: 5, name: '夜航', description: null, trackCount: 0, coverIds: [], createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }
+  ]
+  usePlaylistsStore.setState({ playlists: rows, listLoaded: true, listLoading: false, listError: null })
+  const addTracks = vi.spyOn(usePlaylistsStore.getState(), 'addTracks').mockResolvedValue(true)
+  const create = vi
+    .spyOn(usePlaylistsStore.getState(), 'create')
+    .mockResolvedValue({ id: 9, name: 'x', description: null, trackCount: 0, coverIds: [], createdAt: '', updatedAt: '' })
+  const showToast = vi.spyOn(useToastStore.getState(), 'showToast').mockImplementation(() => undefined)
+  return { addTracks, create, showToast }
+}
+
+/** 右键打开菜单 → 点击「添加到歌单」父项展开子菜单 → 点击子菜单里名为 name 的项。 */
+function clickSubmenuItem(page: { container: HTMLElement }, row: HTMLElement, name: string): void {
+  rightClick(row)
+  const menu = page.container.querySelector<HTMLElement>('.context-menu')
+  expect(menu).not.toBeNull()
+  const parent = menu!.querySelector<HTMLElement>('.context-item--parent')
+  expect(parent).not.toBeNull()
+  act(() => parent!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+  const item = Array.from(menu!.querySelectorAll<HTMLButtonElement>('.context-submenu .context-item')).find(
+    (el) => el.textContent?.includes(name)
+  )
+  expect(item, `子菜单中未找到「${name}」`).not.toBeNull()
+  act(() => item!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+}
+
+describe('Songs 页「添加到歌单」子菜单接线（T6.6 前置）', () => {
+  it('右键 → 点既有歌单 → addTracks(playlistId, [track.id]) + 成功 toast', async () => {
+    const { addTracks, showToast } = seedPlaylistsAndSpies()
+    const tracks = [makeTrack('a'), makeTrack('b')]
+    listSongsResult = tracks
+    const page = mountPage(
+      <MemoryRouter>
+        <Songs />
+      </MemoryRouter>
+    )
+    await flushBrowse()
+    clickSubmenuItem(page, rows(page.container)[0], '夜航')
+    // addTracks→toast 走 async IIFE，断言前先落微任务。
+    await flushBrowse()
+    expect(addTracks).toHaveBeenCalledTimes(1)
+    expect(addTracks).toHaveBeenCalledWith(5, ['a'])
+    expect(showToast).toHaveBeenCalledWith('«toast.addedToPlaylist»')
+    page.unmount()
+  })
+
+  it('右键 → 点「新建歌单」→ create(未命名默认名) → addTracks(新单 id, [track.id])', async () => {
+    const { create, addTracks } = seedPlaylistsAndSpies()
+    const tracks = [makeTrack('a')]
+    listSongsResult = tracks
+    const page = mountPage(
+      <MemoryRouter>
+        <Songs />
+      </MemoryRouter>
+    )
+    await flushBrowse()
+    clickSubmenuItem(page, rows(page.container)[0], '«menu.newPlaylist»')
+    // create→addTracks→toast 均在 await 链上，断言前先落微任务。
+    await flushBrowse()
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(create).toHaveBeenCalledWith('«nav.playlists.untitled»')
+    expect(addTracks).toHaveBeenCalledWith(9, ['a'])
+    page.unmount()
+  })
+})
+
+describe('AlbumDetail 页「添加到歌单」子菜单接线（T6.6 前置）', () => {
+  it('右键 → 点既有歌单 → addTracks(playlistId, [track.id])', async () => {
+    const { addTracks } = seedPlaylistsAndSpies()
+    browseApiData.album = {
+      id: 7,
+      title: 'Al',
+      artistName: 'A',
+      year: 2000,
+      coverId: null,
+      trackCount: 2,
+      genre: 'Pop',
+      discCount: 1
+    }
+    const tracks = [makeTrack('a'), makeTrack('b')]
+    browseApiData.tracks = tracks
+    const page = mountPage(renderAlbum())
+    await flushBrowse()
+    clickSubmenuItem(page, rows(page.container)[1], '夜航')
+    await flushBrowse()
+    expect(addTracks).toHaveBeenCalledWith(5, ['b'])
+    page.unmount()
+  })
+})
+
+describe('ArtistDetail 页「添加到歌单」子菜单接线（T6.6 前置）', () => {
+  it('右键 → 点「新建歌单」→ create(默认名) → addTracks(新单 id, [track.id])', async () => {
+    const { create, addTracks } = seedPlaylistsAndSpies()
+    browseApiData.artist = {
+      id: 3,
+      name: 'A',
+      trackCount: 2,
+      albumCount: 1,
+      sortName: null,
+      avatar: null,
+      background: null,
+      description: null
+    }
+    const tracks = [makeTrack('a'), makeTrack('b')]
+    browseApiData.tracks = tracks
+    const page = mountPage(renderArtist())
+    await flushBrowse()
+    clickSubmenuItem(page, rows(page.container)[0], '«menu.newPlaylist»')
+    await flushBrowse()
+    expect(create).toHaveBeenCalledWith('«nav.playlists.untitled»')
+    expect(addTracks).toHaveBeenCalledWith(9, ['a'])
+    page.unmount()
+  })
+})
 function renderArtist(id = '3'): ReactElement {
   return (
     <MemoryRouter initialEntries={[`/artists/${id}`]}>

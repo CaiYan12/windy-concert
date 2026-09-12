@@ -14,11 +14,16 @@ import { act } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TrackRow } from '../../../shared/types'
+import type { PlaylistRow } from '../../../main/database/repositories/playlistRepo'
 import { useI18nStore } from '../i18n'
 import { useFavoritesStore, DEFAULT_FAVORITE_SORT } from '../stores/favoritesStore'
 import { usePlayerStore } from '../stores/playerStore'
+import { useToastStore } from '../stores/toastStore'
 import { PlayerBar } from '../components/layout/PlayerBar'
 import { flushBrowse, installSentinelI18n, mountPage, resetBrowseApiData } from './browseFixtures'
+// 顺序留痕：playlistsStore（→ ipc/client 求值期捕获 window.api）须在 browseFixtures 之后
+// import，理由同 pageWiring.test.tsx 头注。
+import { usePlaylistsStore } from '../stores/playlistsStore'
 import { Liked } from './Liked'
 
 vi.mock('react-virtuoso', () => ({
@@ -216,6 +221,45 @@ describe('Liked 页行 ♡ 取切片（T6.1）', () => {
     expect(useFavoritesStore.getState().isFavorite('a')).toBe(false)
     // 取消收藏后该行从 Liked 列表移除（乐观），仅剩 1 行。
     expect(rows(page.container)).toHaveLength(1)
+    page.unmount()
+  })
+})
+
+describe('Liked 页「添加到歌单」子菜单接线（T6.6 前置，四页闭环的最后一页）', () => {
+  it('右键 → 点既有歌单 → addTracks(playlistId, [track.id]) + 成功 toast', async () => {
+    // 播种歌单切片（usePlaylistMenu 的子菜单数据源）+ 监听写动作。
+    const playlistRows: PlaylistRow[] = [
+      { id: 5, name: '夜航', description: null, trackCount: 0, coverIds: [], createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }
+    ]
+    usePlaylistsStore.setState({ playlists: playlistRows, listLoaded: true, listLoading: false, listError: null })
+    const addTracks = vi.spyOn(usePlaylistsStore.getState(), 'addTracks').mockResolvedValue(true)
+    const showToast = vi.spyOn(useToastStore.getState(), 'showToast').mockImplementation(() => undefined)
+
+    favoritesRows = [makeTrack('a')]
+    const page = await mountLiked()
+
+    // 右键打开菜单 → 点「添加到歌单」父项展开子菜单 → 点歌单「夜航」。
+    act(() => {
+      rows(page.container)[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
+    })
+    const menu = page.container.querySelector<HTMLElement>('.context-menu')
+    expect(menu).not.toBeNull()
+    act(() => {
+      menu!.querySelector<HTMLElement>('.context-item--parent')!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true })
+      )
+    })
+    const item = Array.from(menu!.querySelectorAll<HTMLButtonElement>('.context-submenu .context-item')).find(
+      (el) => el.textContent?.includes('夜航')
+    )
+    expect(item, '子菜单中未找到歌单「夜航」').not.toBeNull()
+    act(() => item!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+
+    // addTracks→toast 走 async IIFE，断言前先落微任务。
+    await flushBrowse()
+    expect(addTracks).toHaveBeenCalledTimes(1)
+    expect(addTracks).toHaveBeenCalledWith(5, ['a'])
+    expect(showToast).toHaveBeenCalledWith('«toast.addedToPlaylist»')
     page.unmount()
   })
 })

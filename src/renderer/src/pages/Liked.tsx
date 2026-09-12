@@ -13,6 +13,7 @@ import {
 import { Icon } from '../components/Icon'
 import { TrackList } from '../components/TrackList'
 import { playContext, shuffleContext } from './playerBridge'
+import { usePlaylistMenu } from './playlistBridge'
 
 /**
  * Liked 页（T6.1）——「收藏」自动歌单（§4.6 / F6-1；对照 mockups/Liked.html）。
@@ -48,6 +49,8 @@ export function Liked(): ReactElement {
   const playingTrackId = usePlayingTrackId()
   // T6.1：收藏共享切片——本页是 Liked 上下文，行 ♡/右键与 PlayerBar 同一事实源。
   const favorites = useFavorites()
+  // T6.6 前置：右键「添加到歌单」子菜单接线（同 PlaylistDetail 模式）。
+  const playlistMenu = usePlaylistMenu()
 
   // 进入本页向服务端对齐全量（refresh 同时重建 favoriteIds）。空依赖数组：仅挂载时一次。
   useEffect(() => {
@@ -175,6 +178,9 @@ export function Liked(): ReactElement {
         onUnplayableActivate={handleUnplayableActivate}
         favoriteIds={favorites.loaded ? favorites.favoriteIds : undefined}
         onToggleFavorite={handleToggleFavorite}
+        playlists={playlistMenu.playlists}
+        onAddToPlaylist={playlistMenu.onAddToPlaylist}
+        onCreatePlaylist={playlistMenu.onCreatePlaylist}
       />
     </div>
   )

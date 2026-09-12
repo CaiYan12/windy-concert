@@ -1,0 +1,29 @@
+/* T6.5 Recent 页（最近播放）——对照 mockups/Recent.html + mockup.css 的 .track-table--recent。
+ *
+ * 承载语义关键类（登记于 tests/unit/renderer/css-contract.test.ts）：
+ *   · .track-table--recent —— 复用 tracklist.css 的 .track-table / .track-row 基座，仅覆盖
+ *     列模板与最小宽度。设计稿 grid：40px minmax(200px,2fr) 1fr 1fr 96px 28px；封面列取
+ *     代码库一致的 44px（cover--table 实际渲染尺寸，见 TrackRowItem）。
+ *   · .recent-page —— 本页作用域（预留；空态图标弱化走 .recent-empty）。
+ *   · .recent-empty .recent-empty-icon —— 零记录空态图标弱化为三级色观感（同 Liked 先例）。
+ *
+ * 加载顺序：App.tsx 在 tracklist.css 之后引入本文件——列模板覆盖与 .track-table .track-row
+ * 同特异性（0-2-0），靠源码顺序取胜。
+ */
+
+/* ---------- 最近播放表（mockup.css .track-table--recent） ---------- */
+/* 基座 .track-table 的 min-width:900px 是 §3.7 十列的约束；本表仅 6 列，按设计稿列宽
+ * 收窄到 620px（44+200min+1fr+1fr+96+28 的可用下限），窄窗口不出现无谓横向滚动。 */
+.track-table--recent {
+  min-width: 620px;
+}
+
+.track-table--recent .track-row {
+  grid-template-columns: 44px minmax(200px, 2fr) 1fr 1fr 96px 28px;
+}
+
+/* ---------- 本页作用域 ---------- */
+/* 空态（零播放记录）：history 图标弱化，与 browse-state 标题/提示的视觉层级对齐。 */
+.recent-empty .recent-empty-icon {
+  opacity: 0.38;
+}

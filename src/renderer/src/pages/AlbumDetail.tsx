@@ -11,6 +11,7 @@ import { Icon } from '../components/Icon'
 import { TrackList } from '../components/TrackList'
 import { useBrowseData } from './useBrowseData'
 import { playContext, shuffleContext } from './playerBridge'
+import { usePlaylistMenu } from './playlistBridge'
 
 /**
  * AlbumDetail 页（T4.4）——专辑详情（§3.7：Hero 渐变 + 封面 200 + 标题/艺术家/年份·曲目数 +
@@ -32,6 +33,8 @@ export function AlbumDetail(): ReactElement {
   const playingTrackId = usePlayingTrackId()
   // T6.1：收藏切片接线（详见 Songs.tsx 留痕）——详情页曲目行 ♡/右键收藏同样以切片为准。
   const favorites = useFavorites()
+  // T6.6 前置：右键「添加到歌单」子菜单接线（同 PlaylistDetail 模式）。
+  const playlistMenu = usePlaylistMenu()
   const { data, loading, error } = useBrowseData(
     () => api.library.getAlbum(albumId),
     [albumId]
@@ -148,6 +151,9 @@ export function AlbumDetail(): ReactElement {
         onUnplayableActivate={handleUnplayableActivate}
         favoriteIds={favorites.loaded ? favorites.favoriteIds : undefined}
         onToggleFavorite={handleToggleFavorite}
+        playlists={playlistMenu.playlists}
+        onAddToPlaylist={playlistMenu.onAddToPlaylist}
+        onCreatePlaylist={playlistMenu.onCreatePlaylist}
       />
     </div>
   )

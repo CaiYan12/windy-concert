@@ -131,7 +131,8 @@ test('T4.8 逐路由矩阵：11 条路由直达渲染无异常，控制台无 er
     { hash: '#/playlists/999999', title: '歌单详情', marker: '未找到该歌单' },
     // T6.1：/liked 已落地为真实「收藏」页；空库下渲染空态（empty.liked.title）。
     { hash: '#/liked', title: '收藏', marker: '还没有收藏的歌曲' },
-    { hash: '#/recent', title: '最近播放', marker: '页面内容将在后续任务中接入' },
+    // T6.5：/recent 已落地为真实「最近播放」页；空库下渲染空态（empty.recent.title）。
+    { hash: '#/recent', title: '最近播放', marker: '暂无播放记录' },
     { hash: '#/settings', title: '设置', marker: '页面内容将在后续任务中接入' },
     { hash: '#/search?q=', title: '搜索结果', marker: '输入关键词开始搜索' }
   ]

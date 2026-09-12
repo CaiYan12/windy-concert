@@ -11,6 +11,7 @@ import { Icon } from '../components/Icon'
 import { TrackList } from '../components/TrackList'
 import { useBrowseData } from './useBrowseData'
 import { playContext, shuffleContext } from './playerBridge'
+import { usePlaylistMenu } from './playlistBridge'
 
 /**
  * ArtistDetail 页（T4.4）——艺术家详情（§3.7 基础版：Hero + 专辑网格 + 全部曲目）。
@@ -28,6 +29,8 @@ export function ArtistDetail(): ReactElement {
   const playingTrackId = usePlayingTrackId()
   // T6.1：收藏切片接线（详见 Songs.tsx 留痕）——艺术家详情曲目行 ♡/右键收藏同样以切片为准。
   const favorites = useFavorites()
+  // T6.6 前置：右键「添加到歌单」子菜单接线（同 PlaylistDetail 模式）。
+  const playlistMenu = usePlaylistMenu()
   const { data, loading, error } = useBrowseData(
     () => api.library.getArtist(artistId),
     [artistId]
@@ -174,6 +177,9 @@ export function ArtistDetail(): ReactElement {
         onUnplayableActivate={handleUnplayableActivate}
         favoriteIds={favorites.loaded ? favorites.favoriteIds : undefined}
         onToggleFavorite={handleToggleFavorite}
+        playlists={playlistMenu.playlists}
+        onAddToPlaylist={playlistMenu.onAddToPlaylist}
+        onCreatePlaylist={playlistMenu.onCreatePlaylist}
       />
     </div>
   )

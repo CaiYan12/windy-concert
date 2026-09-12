@@ -10,6 +10,7 @@ import { SearchResults } from './SearchResults'
 import { Liked } from './Liked'
 import { Playlists } from './Playlists'
 import { PlaylistDetail } from './PlaylistDetail'
+import { Recent } from './Recent'
 
 /**
  * PagePlaceholder —— 路由 → 页面分发器（T4.4 起逐步落地真实页面）。
@@ -22,8 +23,9 @@ import { PlaylistDetail } from './PlaylistDetail'
  *
  * router.tsx / routes.ts 属 T4.1 冻结文件（不改），故页面迁移只能在此按 pathname 分流
  * （探索结论：ROUTE_DEFS 已含 /albums/:id、/artists/:id，router 已将其注册为 PagePlaceholder，
- * 故带参路由无需改动 router.tsx）。尚未落地的路由（recent/settings）仍走纯占位，
- * 待各自任务替换（liked 已于 T6.1 落地，search 已于 T4.5 落地，playlists 已于 T6.2 落地）。
+ * 故带参路由无需改动 router.tsx）。尚未落地的路由（settings）仍走纯占位，
+ * 待各自任务替换（liked 已于 T6.1 落地，search 已于 T4.5 落地，playlists 已于 T6.2 落地，
+ * recent 已于 T6.5 落地）。
  */
 export function PagePlaceholder(): ReactElement {
   const { t } = useI18n()
@@ -43,6 +45,8 @@ export function PagePlaceholder(): ReactElement {
   // 顺序：先精确匹配 /playlists，再前缀匹配详情（同 /albums 与 /albums/:id 的处理次序）。
   if (pathname === '/playlists') return <Playlists />
   if (pathname.startsWith('/playlists/')) return <PlaylistDetail />
+  // T6.5：/recent 落地真实页面（routes.ts / router.tsx 冻结，同分发器模式）。
+  if (pathname === '/recent') return <Recent />
 
   // ---- 尚未落地的路由：纯占位（仅服务未实现页面，避免死链） ----
   return (

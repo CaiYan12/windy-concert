@@ -20,6 +20,9 @@ import './styles/playlists.css'
 // 必须在 tracklist.css 之后加载：.track-table--compact .track-row 与 .track-table .track-row
 // 同特异性（0-2-0），靠后加载覆盖为 6 列格（见 search.css 文件头说明）。
 import './styles/search.css'
+// T6.5：Recent 页（最近播放轻量表）。必须在 tracklist.css 之后——.track-table--recent
+// 的 6 列格与 .track-table .track-row 同特异性（0-2-0），靠后加载覆盖（见 recent.css 头注）。
+import './styles/recent.css'
 // T5.6：轻量 toast（不可播提示等），全局引入（与 cover/tracklist 同层生效）。
 import './styles/toast.css'
 // T5.6：全局 toast 宿主（role="alert"，单例替换不堆叠），挂载于路由出口之外。

@@ -7,6 +7,7 @@ import { useToastStore } from '../stores/toastStore'
 import { ensureStatsLoaded, formatCount, useStats } from '../stores/statsStore'
 import { useFavorites, useFavoritesStore } from '../stores/favoritesStore'
 import { playContext } from './playerBridge'
+import { usePlaylistMenu } from './playlistBridge'
 import { TrackList } from '../components/TrackList'
 
 /**
@@ -55,6 +56,8 @@ export function Songs(): ReactElement {
   // T6.1：收藏切片接线——列表行 ♡/♥ 与右键「收藏/取消收藏」以切片为唯一事实源（loaded 前回退
   // track.favorite，避免把未加载的空集合当成「全未收藏」）。toggle 乐观 + 失败回滚在切片内。
   const favorites = useFavorites()
+  // T6.6 前置：右键「添加到歌单」子菜单接线（真实歌单列表 + 加曲 + 新建歌单，同 PlaylistDetail 模式）。
+  const playlistMenu = usePlaylistMenu()
 
   // T5.6：双击整队（上下文 = 当前页视图 songs，startIndex = 当页行号）；右键菜单接 playNext/enqueue；
   // 不可播双击 → 轻量 toast「M0.1 暂不支持此格式播放」。store 动作经 getState 调，避免无谓重渲染。
@@ -129,6 +132,10 @@ export function Songs(): ReactElement {
         onUnplayableActivate={handleUnplayableActivate}
         favoriteIds={favorites.loaded ? favorites.favoriteIds : undefined}
         onToggleFavorite={handleToggleFavorite}
+        // T6.6 前置：右键「添加到歌单」子菜单（真实歌单列表 + 加曲 + 新建歌单）。
+        playlists={playlistMenu.playlists}
+        onAddToPlaylist={playlistMenu.onAddToPlaylist}
+        onCreatePlaylist={playlistMenu.onCreatePlaylist}
       />
       {showPagination && (
         <nav className="songs-pagination" aria-label={t('songs.pagination.label')}>
