@@ -40,6 +40,38 @@ describe('folderRepo', () => {
     expect(f2.path).toBe('c:/Users/Music');
   });
 
+  // ---- T7.3 normalizePath 边界加固（承接项）----
+
+  it('normalizePath 加固：空串/纯空白拒收（throw，不落库）', () => {
+    current = setup();
+    const { folderRepo } = current;
+    expect(() => folderRepo.add('')).toThrow(/非法 path/);
+    expect(() => folderRepo.add('   ')).toThrow(/非法 path/);
+    // 拒收后无残留行
+    expect(folderRepo.list()).toHaveLength(0);
+  });
+
+  it('normalizePath 加固：盘符根保持根语义（"C:\\" → "c:\\"，补回分隔符不缩为 "c:"）', () => {
+    // Windows 语义中 'c:' 指「该驱动器当前目录」而非根——加固前 'C:\' 会被归一成
+    // 'c:'（语义偏移）；加固后补回分隔符，根路径收敛为 'c:\'。
+    current = setup();
+    const { folderRepo } = current;
+    const f = folderRepo.add('C:\\');
+    expect(f.path).toBe('c:\\');
+    const f2 = folderRepo.add('d:/');
+    expect(f2.path).toBe('d:\\');
+  });
+
+  it('normalizePath 加固：UNC 主机段小写归一（"\\\\SERVER\\Share" → "\\\\server\\Share"）', () => {
+    // 主机名大小写不敏感 → 归一稳定去重；共享名大小写保留（部分设备敏感，最小面不动）。
+    current = setup();
+    const { folderRepo } = current;
+    const f = folderRepo.add('\\\\SERVER\\Share\\Music');
+    expect(f.path).toBe('\\\\server\\Share\\Music');
+    const f2 = folderRepo.add('//NAS-2/Share');
+    expect(f2.path).toBe('\\\\nas-2/Share');
+  });
+
   it('setEnabled 切换 enabled', () => {
     current = setup();
     const { db, folderRepo } = current;

@@ -204,6 +204,101 @@ describe('registerIpcHandlers', () => {
     expect(() => ctx.call(IPC.CHANNELS.LIBRARY_SET_FOLDER_ENABLED, { id: id2, enabled: false })).not.toThrow();
   });
 
+  // ---- T7.3：listFolders 通道 + markMissing 立即语义（裁定口径）----
+
+  /** 目录语义专用造数：按指定 file_path 落曲目（真实 triggers；seedLibrary 的 mk 收窄版）。 */
+  function seedTrackWith(id: string, filePath: string): void {
+    const { db } = ctx;
+    const trackRepo = createTrackRepo(db);
+    const artistRepo = createArtistRepo(db);
+    const albumRepo = createAlbumRepo(db);
+    const artistId = artistRepo.upsertArtist('目录测试艺术家');
+    const albumId = albumRepo.upsertAlbum('目录测试专辑', artistId);
+    trackRepo.createMany([
+      {
+        id,
+        title: `曲目-${id}`,
+        artistId,
+        albumId,
+        artistString: '目录测试艺术家',
+        albumArtist: '目录测试艺术家',
+        albumTitle: '目录测试专辑',
+        filePath,
+        fileName: 'a.mp3',
+        fileSize: 1,
+        fileMtime: 1,
+        format: 'mp3',
+        playable: true,
+      },
+    ]);
+  }
+
+  it('library:listFolders → 返回全部目录行（含禁用），形状 FolderRow[]', () => {
+    const a = ctx.call<{ id: number }>(IPC.CHANNELS.LIBRARY_ADD_FOLDER, { path: 'D:\\Music' });
+    const b = ctx.call<{ id: number }>(IPC.CHANNELS.LIBRARY_ADD_FOLDER, { path: 'E:\\Archive' });
+    ctx.call(IPC.CHANNELS.LIBRARY_SET_FOLDER_ENABLED, { id: b.id, enabled: false });
+    const rows = ctx.call<Array<{ id: number; path: string; enabled: boolean; recursive: boolean }>>(
+      IPC.CHANNELS.LIBRARY_LIST_FOLDERS
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.path)).toEqual(['d:\\Music', 'e:\\Archive']); // list 按 path 升序
+    expect(rows.map((r) => r.enabled)).toEqual([true, false]); // 含禁用目录
+  });
+
+  it('T7.3 markMissing 立即语义：removeFolder 成功后该目录下 available 曲目立即 missing（行保留），目录外曲目不受影响', () => {
+    seedTrackWith('in-1', 'D:\\Music\\a.mp3'); // 目录内（反斜杠，fs 原样形态）
+    seedTrackWith('in-2', 'd:/music/sub/b.mp3'); // 目录内（正斜杠 + 子目录，混合分隔符对齐）
+    seedTrackWith('edge', 'D:\\MusicX\\c.mp3'); // 前缀相似但非该目录（边界：'d:\Music' 不误伤 'd:\MusicX'）
+    seedTrackWith('out', 'E:\\Other\\d.mp3'); // 目录外
+    const { id } = ctx.call<{ id: number }>(IPC.CHANNELS.LIBRARY_ADD_FOLDER, { path: 'D:\\Music' });
+    const trackRepo = createTrackRepo(ctx.db);
+
+    ctx.call(IPC.CHANNELS.LIBRARY_REMOVE_FOLDER, { id });
+
+    // 目录内行保留（不删记录），status 变 missing（播放历史/收藏自然保留）
+    expect(trackRepo.findById('in-1')).not.toBeNull();
+    expect(trackRepo.findById('in-1')!.status).toBe('missing');
+    expect(trackRepo.findById('in-2')!.status).toBe('missing');
+    // 目录外与前缀相似目录的曲目不受影响
+    expect(trackRepo.findById('edge')!.status).toBe('available');
+    expect(trackRepo.findById('out')!.status).toBe('available');
+    // 目录行本身已删除
+    expect(createFolderRepo(ctx.db).list()).toHaveLength(0);
+  });
+
+  it('T7.3 markMissing 立即语义：setFolderEnabled(false) → 立即 missing；重新启用 → 不立即恢复（等下次扫描）', () => {
+    seedTrackWith('dis-1', 'D:\\Music\\a.mp3');
+    const { id } = ctx.call<{ id: number }>(IPC.CHANNELS.LIBRARY_ADD_FOLDER, { path: 'D:\\Music' });
+    const trackRepo = createTrackRepo(ctx.db);
+
+    ctx.call(IPC.CHANNELS.LIBRARY_SET_FOLDER_ENABLED, { id, enabled: false });
+    expect(trackRepo.findById('dis-1')!.status).toBe('missing');
+
+    // 启用（禁用→启用）不立即恢复 available——裁定口径：等下次扫描（复活语义保证 UUID 保序），
+    // 避免「启用即全库绿」与实际文件系统状态脱节（Settings.tsx / ipc 两侧留痕）。
+    ctx.call(IPC.CHANNELS.LIBRARY_SET_FOLDER_ENABLED, { id, enabled: true });
+    expect(trackRepo.findById('dis-1')!.status).toBe('missing');
+  });
+
+  it('T7.3 markMissing 复活语义核实（repo 级等价复现）：missing 行文件回归 → setStatus available 后 UUID 不变', () => {
+    // scanService 阶段 B 的复活路径（unchanged/changed 分支收集 reviveIds → setStatus('available')，
+    // 同三元组保 UUID）已有 service/e2e 级覆盖（tests/unit/library/scanService.test.ts ⑦ 与
+    // scan.e2e.test.ts F1-6）；此处以 repo 级等价复现锚定「移除目录标 missing → 日后恢复」的
+    // 状态迁移可逆性：行仍按原 id 可寻址，setStatus 可复活。
+    seedTrackWith('rev-1', 'D:\\Music\\a.mp3');
+    const { id } = ctx.call<{ id: number }>(IPC.CHANNELS.LIBRARY_ADD_FOLDER, { path: 'D:\\Music' });
+    const trackRepo = createTrackRepo(ctx.db);
+    ctx.call(IPC.CHANNELS.LIBRARY_REMOVE_FOLDER, { id });
+    expect(trackRepo.findById('rev-1')!.status).toBe('missing');
+
+    // 目录重新添加并启用 → 下次扫描文件仍在：按同 id 复活（scanService 既有语义，此处等价驱动）
+    ctx.call(IPC.CHANNELS.LIBRARY_ADD_FOLDER, { path: 'D:\\Music' });
+    trackRepo.setStatus(['rev-1'], 'available');
+    const row = trackRepo.findById('rev-1');
+    expect(row!.id).toBe('rev-1'); // UUID 不变
+    expect(row!.status).toBe('available');
+  });
+
   it('library:getTrack 不存在 → null（不抛错）', () => {
     expect(ctx.call(IPC.CHANNELS.LIBRARY_GET_TRACK, { id: 'nope' })).toBeNull();
   });

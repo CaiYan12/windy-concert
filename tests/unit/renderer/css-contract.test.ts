@@ -497,6 +497,47 @@ const REQUIRED_SELECTORS: ReadonlyArray<{
     selector: '.about-list',
     guards: '已知限制八条列表容器（grid 间距）；缺则条目贴叠',
     strict: true
+  },
+  // --- T7.3 Library 分区（settings.css）语义关键类 ---
+  {
+    selector: '.switch',
+    guards: '40×22 启用开关（目录启用/自动扫描共用；aria-checked 驱动开合态）；缺则开关降级为无样式空按钮，开合态不可辨',
+    strict: true
+  },
+  {
+    selector: '.progress-track',
+    guards: '扫描进度槽（--bg-input 底 + overflow hidden）；缺则进度条降级为裸 div，扫描进度不可辨',
+    strict: true
+  },
+  {
+    selector: '.folder-row',
+    guards: '目录行（flex + 边框盒 + bg-elevated）；缺则目录列表降级为裸文本行，路径/开关/删除按钮无版位',
+    strict: true
+  },
+  {
+    selector: '.folder-row .path',
+    guards: '目录路径溢出省略（真实 Windows 路径可能很长）；缺则长路径撑破行宽',
+    strict: true
+  },
+  {
+    // descendant 形态（状态文字着色于 .folder-copy 内），不可标 strict。
+    selector: '.folder-row .folder-status',
+    guards: '目录状态行（已启用/已停用，--text-secondary / xs）；缺则状态与路径混排不可辨'
+  },
+  {
+    selector: '.scan-status',
+    guards: '扫描进度状态区容器（done/total + 阶段文案 + 百分比 + 进度槽）；缺则进度信息降级为无版式流文本',
+    strict: true
+  },
+  {
+    selector: '.scan-line',
+    guards: '进度文案行（两端对齐：左文案右百分比）；缺则文案与百分比纵向堆叠',
+    strict: true
+  },
+  {
+    // .progress-fill 在 shell.css 有裸规则（播放栏共用），此处按全局既有条目口径不重复 strict。
+    selector: '.progress-fill',
+    guards: '扫描进度填充条（本页内联 width 百分比驱动；复用 shell.css 既有 fill 规则 + settings.css accent 着色）'
   }
 ]
 

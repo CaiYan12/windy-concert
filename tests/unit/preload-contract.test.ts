@@ -116,6 +116,8 @@ describe('window.api 契约类型锁（expectTypeOf）', () => {
       | 'addFolder'
       | 'removeFolder'
       | 'setFolderEnabled'
+      // T7.3：目录列表只读通道（Settings Library 分区数据源）。
+      | 'listFolders'
       | 'scan'
       | 'rescanAll'
       | 'listSongs'

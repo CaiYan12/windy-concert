@@ -9,9 +9,15 @@
  *   · .settings-select —— 语言下拉盒（对照 mockup.css .sort-control select 形态）。
  *   · .pill / .version —— Playback 音量只读回显徽标 / About 版本号（mono）。
  *   · .about-list —— §8 已知限制八条列表（左缘线形态）。
- *   · .switch / .progress-track / .progress-fill —— T7.3 样式基建（40×22 开关、
- *     --bg-input 进度槽，mockup.css 原样迁移）；本批 Settings 页尚不渲染这两类控件，
- *     故暂不登记 css-contract（登记表只收「组件会渲染的类名」，T7.3 落地时补登）。
+ *   · .switch / .progress-track / .progress-fill —— T7.3 开关（40×22）、扫描进度槽
+ *     （--bg-input 槽，mockup.css 原样迁移）；T7.3 起本页真实渲染，css-contract 已补登。
+ *   · .folder-list / .folder-row（+ .folder-copy/.path/.folder-status）—— T7.3 目录列表
+ *     （mockup.css 同形态迁移）。
+ *   · .scan-status / .scan-line —— T7.3 扫描进度状态区（done/total + 阶段文案 + 百分比）。
+ *   · .inline-confirm / .inline-actions —— **不上移**评估结论（Phase 7 前置清单）：
+ *     App.tsx 全局无条件引入全部 styles/*.css，playlists.css 中的 .inline-confirm /
+ *     .inline-actions（及 .button 族）对本页已天然生效（与 AlbumDetail 返回链接引用
+ *     playlists.css .button 同一先例）；再复制/上移只会产生双份规则，维持原位（留痕）。
  *
  * 加载顺序：App.tsx 在 browse.css 之后引入——.settings-section h2 等依赖全局排版，
  * .section-heading 复用 browse.css 已有规则（本文件不重复定义）。
@@ -159,7 +165,7 @@
   color: var(--text-secondary);
 }
 
-/* ---------- T7.3 样式基建（本批不渲染、不登记 css-contract，见文件头） ---------- */
+/* ---------- T7.3 样式基建（.switch / .progress-track 由本页真实渲染，css-contract 已补登） ---------- */
 /* 40×22 开关（mockup.css:1506-1541；button[aria-checked] 形态与 mockup data-switch 一致） */
 .switch {
   position: relative;
@@ -207,4 +213,58 @@
 .progress-fill {
   height: 100%;
   background: var(--accent);
+}
+
+/* ---------- T7.3 目录列表（mockup.css .folder-list / .folder-row 同形态迁移） ---------- */
+.folder-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.folder-row {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.folder-row .folder-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.folder-row .path {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+}
+
+.folder-row .folder-status {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+/* ---------- T7.3 扫描进度状态区（mockup.css .scan-status / .scan-line 同形态） ---------- */
+.scan-status {
+  margin-top: 16px;
+}
+
+.scan-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }

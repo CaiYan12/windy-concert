@@ -26,6 +26,8 @@ const api = {
     removeFolder: (id: number) => invoke(IPC.CHANNELS.LIBRARY_REMOVE_FOLDER, { id }),
     setFolderEnabled: (id: number, enabled: boolean) =>
       invoke(IPC.CHANNELS.LIBRARY_SET_FOLDER_ENABLED, { id, enabled }),
+    // T7.3：目录列表（含禁用目录，Settings Library 分区数据源）。
+    listFolders: () => invoke(IPC.CHANNELS.LIBRARY_LIST_FOLDERS),
     scan: () => invoke(IPC.CHANNELS.LIBRARY_SCAN),
     rescanAll: () => invoke(IPC.CHANNELS.LIBRARY_RESCAN_ALL),
     listSongs: (params: IpcPayloads['library:listSongs']) =>

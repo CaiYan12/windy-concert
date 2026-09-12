@@ -136,6 +136,38 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
 
   const resolveDialog = (): Dialog => deps.dialog ?? getElectron().dialog;
 
+  // ---- T7.3 目录移除/禁用 → 立即 markMissing ----
+  // 裁定口径（grill ①）：移除/禁用目录时，该目录下 available 曲目立即标 missing——
+  //   行保留、播放历史与收藏自然保留，仅状态变灰（is-missing）；下次扫描若目录恢复/
+  //   文件仍在，markMissing→复活既有语义（scanService 阶段 B C1：unchanged/changed 分支
+  //   收集 reviveIds → setStatus('available')，同三元组保 UUID）会自然回 available。
+  //   反向：启用目录（禁用→启用）**不**立即恢复 available——等下次扫描（复活语义已保证
+  //   UUID 保序），避免「启用即全库绿」与实际文件系统状态脱节（留痕）。
+  // 位置选型（最小侵入）：handler 侧实现而非 trackRepo 加新方法——
+  //   复用 listIdentityAll（内存过滤前缀）+ setStatus（既有批量白名单方法）两个既有
+  //   收口点，SQL 零改动；规模与 scanService 每次扫描全量 listIdentityAll 同量级（30k 行
+  //   内存过滤毫秒级），触发频率是人手点开关，无性能压力（留痕）。
+  function markTracksMissingUnderFolder(folderPath: string): void {
+    // 前缀对齐：folderRepo 存储侧归一（小写盘符、混合分隔符可能）；stat 落库路径为 fs 原样。
+    //   统一转小写 + '\'→'/' 后做 startsWith，与 scanService 比较键 path.toLowerCase() 的
+    //   Windows 大小写不敏感口径一致；尾补 '/' 保证 'd:\Music' 不误伤 'd:\MusicX'。
+    const prefix =
+      folderPath
+        .replace(/[\\/]+$/, '')
+        .toLowerCase()
+        .replace(/\\/g, '/') + '/';
+    const ids = trackRepo
+      .listIdentityAll()
+      .filter((r) => r.status === 'available' && r.filePath.toLowerCase().replace(/\\/g, '/').startsWith(prefix))
+      .map((r) => r.id);
+    if (ids.length > 0) trackRepo.setStatus(ids, 'missing');
+  }
+
+  /** 按目录 id 取行（folderRepo 无 getById，list() 规模=目录数，无性能顾虑，留痕）。 */
+  function findFolderById(id: number): { path: string } | undefined {
+    return folderRepo.list().find((f) => f.id === id);
+  }
+
   // ---- 目录管理 ----
   register(IPC.CHANNELS.LIBRARY_ADD_FOLDER, (_e, payload) => {
     const p = (payload ?? {}) as IpcPayloads['library:addFolder'];
@@ -156,11 +188,17 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
     return { id: row.id };
   });
 
+  register(IPC.CHANNELS.LIBRARY_LIST_FOLDERS, () => folderRepo.list());
+
   register(IPC.CHANNELS.LIBRARY_REMOVE_FOLDER, (_e, payload) => {
     const p = payload as IpcPayloads['library:removeFolder'];
     if (typeof p?.id !== 'number') throw new Error('library:removeFolder 需要数字 id');
+    // T7.3 裁定口径：移除前先取路径，移除成功后该目录下 available 曲目立即标 missing
+    //   （行保留、播放历史与收藏保留，仅状态变灰；见 markTracksMissingUnderFolder 头注）。
+    const folder = findFolderById(p.id);
     folderRepo.remove(p.id);
     deps.onFoldersChanged?.(); // T3.2 失效接线
+    if (folder) markTracksMissingUnderFolder(folder.path);
   });
 
   register(IPC.CHANNELS.LIBRARY_SET_FOLDER_ENABLED, (_e, payload) => {
@@ -169,6 +207,11 @@ export function registerIpcHandlers(deps: RegisterIpcDeps): void {
     if (typeof p.enabled !== 'boolean') throw new Error('library:setFolderEnabled 需要布尔 enabled');
     folderRepo.setEnabled(p.id, p.enabled);
     deps.onFoldersChanged?.(); // T3.2 失效接线：enabled 变更即启用集合变更
+    // T7.3 裁定口径：禁用 → 立即标 missing；启用 → 不恢复（等下次扫描，头注留痕）。
+    if (!p.enabled) {
+      const folder = findFolderById(p.id);
+      if (folder) markTracksMissingUnderFolder(folder.path);
+    }
   });
 
   // ---- 扫描 ----

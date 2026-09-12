@@ -30,12 +30,28 @@ export interface FolderRepo {
 // path 规范化（派发决定留痕）
 //   - 去尾部 \ 或 /（多斜杠一并清掉，避免 'D:\Music\\' 残留）。
 //   - 盘符小写：'^[A-Za-z]:' → 小写（Windows 路径区分大小写无关但规范化需稳定，便于 UNIQUE 去重）。
+//   T7.3 边界加固（承接项，最小修复面）：
+//   - 空串/纯空白拒收：throw（空 path 落库后 getFolders 会把 '' 交给 walker 遍历 cwd，
+//     语义错位且难排查，源头拒收）。
+//   - 盘符根补回分隔符：'C:\' 去尾后只剩 'c:'——Windows 语义中 'c:' 指「该驱动器当前
+//     目录」而非根（语义偏移），归一为 'c:\' 保持根语义（'C:\' 与 'c:\' 收敛为同一形态）。
+//   - UNC 主机段小写归一：'\\SERVER\share' → '\\server\share'（主机名大小写不敏感，
+//     归一后 UNIQUE 去重稳定；共享名大小写保留——部分设备对共享名大小写敏感，最小面不动）。
 //   是否导出：内部使用，不导出（避免跨模块耦合）。具体用例 'D:\Music\' → 'd:\Music'。
 // ---------------------------------------------------------------------------
 
 function normalizePath(p: string): string {
+  if (typeof p !== 'string' || p.trim().length === 0) {
+    throw new Error(`folderRepo.add: 非法 path "${String(p)}"（空串/纯空白拒收）`);
+  }
   let s = p.replace(/[\\/]+$/, ''); // 去尾部所有分隔符
+  // UNC：主机段（首个反斜杠前的段）小写归一，形态统一回 '\\' 前缀
+  const unc = s.match(/^([\\/]{2})([^\\/]+)/);
+  if (unc) {
+    s = '\\\\' + unc[2].toLowerCase() + s.slice(unc[0].length);
+  }
   s = s.replace(/^[A-Za-z]:/, (m) => m.toLowerCase()); // 小写盘符
+  if (/^[A-Za-z]:$/.test(s)) s += '\\'; // 盘符根补回分隔符（'c:' → 'c:\'，保持根语义）
   return s;
 }
 

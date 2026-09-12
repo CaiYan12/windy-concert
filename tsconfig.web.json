@@ -8,6 +8,7 @@
     "src/preload/index.ts",
     "src/main/database/repositories/albumRepo.ts",
     "src/main/database/repositories/artistRepo.ts",
+    "src/main/database/repositories/folderRepo.ts",
     "src/main/database/repositories/playlistRepo.ts",
     "src/main/database/repositories/rowMapper.ts",
     "src/shared/**/*"

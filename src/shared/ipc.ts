@@ -24,6 +24,7 @@ import type {
 } from './types';
 import type { AlbumDetail } from '../main/database/repositories/albumRepo';
 import type { ArtistDetail } from '../main/database/repositories/artistRepo';
+import type { FolderRow } from '../main/database/repositories/folderRepo';
 import type { PlaylistDetail, PlaylistRow } from '../main/database/repositories/playlistRepo';
 
 /** 全部 channel 常量（§3.6 一览表逐条）。字符串值即渲染端 invoke 的 channel 名。 */
@@ -32,6 +33,8 @@ export const IPC = {
     LIBRARY_ADD_FOLDER: 'library:addFolder',
     LIBRARY_REMOVE_FOLDER: 'library:removeFolder',
     LIBRARY_SET_FOLDER_ENABLED: 'library:setFolderEnabled',
+    // T7.3：目录列表只读通道（Settings Library 分区渲染数据源；additive）。
+    LIBRARY_LIST_FOLDERS: 'library:listFolders',
     LIBRARY_SCAN: 'library:scan',
     LIBRARY_RESCAN_ALL: 'library:rescanAll',
     SCAN_PROGRESS: 'scan:progress',
@@ -77,6 +80,8 @@ export interface IpcPayloads {
   'library:addFolder': { path?: string };
   'library:removeFolder': { id: number };
   'library:setFolderEnabled': { id: number; enabled: boolean };
+  /** T7.3：目录列表（零 payload；返回 folderRepo.list() 全行，含禁用目录）。 */
+  'library:listFolders': void;
   'library:scan': void;
   'library:rescanAll': void;
   'library:listSongs': { sortBy: SortKey; order?: SortOrder; offset?: number; limit?: number };
@@ -111,6 +116,8 @@ export interface IpcReturns {
   'library:addFolder': { id: number };
   'library:removeFolder': void;
   'library:setFolderEnabled': void;
+  /** T7.3：FolderRow 复用 repo 层形态（同 AlbumDetail 等先例，类型层 import 零运行时依赖）。 */
+  'library:listFolders': FolderRow[];
   'library:scan': void;
   'library:rescanAll': void;
   'library:listSongs': TrackRow[];
