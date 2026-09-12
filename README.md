@@ -67,13 +67,13 @@ Phase 6 已完成 T6.0~T6.6（收尾评审 PASS_WITH_NOTES）。Phase 7 期间�
 
 Phase 7 已完成 T7.1~T7.6（收尾评审 NEEDS_FIXES → Critical 修复后达 PASS 线）。最终状态：**705 unit tests / typecheck 0 / e2e 26 passed（两轮零 flaky）**；F8-1/F8-2/F1-1 验收映射逐条落实（F1-5 载体为 Phase 8）。
 
-- **[T8.1 首日] electron-builder.yml 定稿**：现状模板默认（appId com.electron.app/productName app/NSIS target/publish example.com）与 §3.8 绿色目录+build.bat 路线不符；**resources/icon.ico 缺失**（评审 ls 实证）——构建首日必须处理。
-- **[T8 前裁定] last_scan_at 死列处置**：建列全链路零写入（T7.6 实证「last_scan_at 佐证不可用」）——实现写入/删列/写进已知限制三选一（建议 0.1 写进已知限制）。
-- **[T8.2] docs/perf-0.1.md 未建**（计划允许新建）；gen-sample-library.mjs 就位；§6.2 七项指标、§6.3 M1-M8 脚本在计划原文。
-- **[T8] M4 200 首歌单拖拽排序人工脚本**待执行（README Phase 6 清单承接）。
-- **[T8.5] 人工复核「设置修改后重启全部保持」**执行未留痕 + normalizePath 存量 `c:` 行口径写入 README 已知限制。
-- **[建议] 正向启动扫描 e2e**（autoScanOnStartup=true 重启→新文件入库；T7.6d 仅反例+阳性对照）；volume/muted 持久化 e2e；Liked 4 键排序 e2e。
-- **[环境]** 测试一律大写 `D:\Dev\windy-concert` cwd + `CODEBUDDY_SAFE_DELETE_ENABLED=0`（CI/贡献者文档化——评审三连实锤）。
+- **[T8.1] electron-builder 配置与当前绿色目录已有证据**：`electron-builder.yml` 已包含 `appId: cn.windyconcert.app`、`productName: Windy Concert`、NSIS target 与 `resources/icon.ico`；只读检查确认 `build\resources\icon.ico` 存在。该证据不等同于发布或打包收尾完成。
+- **[T8 前裁定] `last_scan_at` 写入已知限制**：建列全链路零写入（T7.6 实证「last_scan_at 佐证不可用」）；0.1 不实现写入、不删列，按已知限制记录。
+- **[T8.2] 性能证据已建并补充 Task 3 终端门禁**：`docs/perf-0.1.md` 保留七项指标的自动/桌面边界；首次扫描、启动增量、搜索、zip 体积已有自动证据，启动可交互、空库内存、切歌起音仍为 `NOT MEASURED`；M1-M8 人工行仍待桌面观察。
+- **[T8] M4 200 首歌单拖拽排序人工脚本**：`NOT MEASURED`；必须实际拖拽 200 首并重启后核对首/中/尾标识，现有小规模 E2E 不能替代。
+- **[T8.5] 设置重启与路径边界**：设置修改后重启的人工复核 `NOT MEASURED`。当前 `normalizePath` 已由代码/单测证明 `C:\` → `c:\`（保留根分隔符），但历史存量 `c:` 行未迁移，继续按已知边界处理。
+- **[建议] 三项补充 E2E**：正向 `autoScanOnStartup=true` 重启入库、volume/muted 跨重启持久化、Liked 四键排序本次均未运行；现有 T7.6d 只覆盖 `autoScanOnStartup=false` 的负向重启与手动重扫阳性对照，现有 Favorites E2E 只覆盖收藏→Liked→取消同步。
+- **[环境]** 测试一律从大写 `D:\Dev\windy-concert` cwd 执行，并在 Vitest/相关测试进程前设置 `CODEBUDDY_SAFE_DELETE_ENABLED=0`；Task 3 未运行会启动 Electron 的 `npm run test:e2e`，该桌面边界由串行控制器负责。
 
 **Phase 3（IPC / Preload / 设置 / i18n）——前置清单收口情况（2026-09-11 Phase 4 收尾更新）**
 

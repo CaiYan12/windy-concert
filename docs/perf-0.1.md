@@ -151,3 +151,44 @@ At cleanup time all packaged app processes were closed (`Windy Concert` process 
 ## Release boundary
 
 No metric row is marked `FAIL`. T8.2 remains open only for the three desktop-bound manual rows: startup-to-interactive, empty-library memory, and track-start latency. These rows must be handled by the later manual-script task; this report does not claim T8.2 complete.
+
+## Task 3 terminal-only refresh and M1-M8 appendix
+
+Measurement date: 2026-09-13 (Asia/Shanghai)
+
+Reviewed base: `88649a2`.
+
+This refresh stayed inside the terminal/documentation boundary. It did not launch `build\Windy Concert.exe`, did not run `npm run test:e2e`, did not use Computer Use, and did not touch `.learnings/` or the existing zip artifact. Terminal evidence below is supporting evidence only; it does not turn a desktop/manual row into a pass.
+
+### Fresh non-desktop gates
+
+All commands were run from the uppercase workspace path `D:\Dev\windy-concert`. The Vitest command ran with `CODEBUDDY_SAFE_DELETE_ENABLED=0`; the variable was removed after the gates.
+
+| Command/check | Exit code | Fresh evidence |
+|---|---:|---|
+| `npm test` | `0` | Vitest `59 passed` files, `707 passed` tests; jsdom emitted non-fatal `HTMLCanvasElement.getContext()` and `HTMLMediaElement.play()` not-implemented warnings. |
+| `npm run typecheck` | `0` | Web and Node TypeScript projects both completed without diagnostics. |
+| Read-only built artifact/config check | `0` | `build\Windy Concert.exe`, `build\resources\app.asar`, `build\resources\icon.ico`, and `build\locales` exist; `electron-builder.yml` required appId/productName/resources/NSIS entries are present. |
+| Read-only current zip inspection | `0` | `Windy-Concert-0.1.0-win64.zip` is `157,722,528` B with `160` entries; normalized entry lookup found `Windy Concert.exe`, `resources/app.asar`, and `resources/icon.ico`. The zip was not modified. |
+| `npm run test:e2e` | not run | Deliberately excluded because it launches Electron and belongs to the controller's serial desktop boundary. |
+
+Static artifact details from the same read-only check: executable `210,896,896` B (SHA-256 `5197AECC00916F119FB76500EE4675BA4DAA7A09C8742760A7FE19D26AFF244A`), `app.asar` `7,444,396` B (SHA-256 `64C6DA5D65D961C4927279169374E41245A7973D171DFF02D32F7BD628DD6A68`), and icon `11,258` B. `package.json` reports version `0.1.0`; Settings uses the `app:getVersion` channel, so no Settings.tsx version mismatch was proven and that file was not changed.
+
+### M1-M8 manual acceptance status
+
+The statuses below are the required product-owner/manual rows. None is marked `PASS` without an actual desktop observation.
+
+| Row | Status | Required observation and exact blocker/method |
+|---|---|---|
+| M1 全功能走查 | `NOT MEASURED` | Requires a packaged-app desktop flow with a real personal directory: add directory, inspect cover wall/artists/search, and double-click playback. Terminal tests and static artifact checks cannot observe this flow; no personal audio was copied into the repository. |
+| M2 增量与启动扫描 | `NOT MEASURED` | Requires adding a new file while running, restarting the packaged app with the same user-data directory, and confirming automatic ingestion. Existing T7.6d is the negative `autoScanOnStartup=false` case plus manual-rescan positive control; it is not the positive `autoScanOnStartup=true` restart observation. |
+| M3 播放栏 | `NOT MEASURED` | Requires desktop/UI and audible observation of progress seek, volume, mute, Repeat, Shuffle, and all six Repeat×Shuffle combinations. No honest manual audio observation was available in this terminal-only task. |
+| M4 200 首歌单 | `NOT MEASURED` | Requires a 200-track playlist, drag reorder, close/relaunch, and exact first/middle/last identifier comparison. Existing small-playlist E2E coverage does not supply this manual 200-track evidence. |
+| M5 移动硬盘/missing | `NOT MEASURED` | Requires unplugging a removable directory or renaming it, observing missing state, restoring the directory, and observing reconnection behavior. No desktop filesystem scenario was performed. |
+| M6 3 万库滚动 | `NOT MEASURED` | The 30,000-file generator and packaged scan/search evidence exist above, but rapid Songs/Albums scrolling is a desktop observation and was not performed. |
+| M7 输出设备 | `NOT MEASURED` | Requires changing the Windows default output device and confirming that new playback uses the new device. No real output-device switch or audible check was performed. |
+| M8 绿色包冒烟与清理 | `NOT MEASURED` | Requires copying the zip elsewhere, extracting, launching the packaged app, scanning/playing/searching, checking no residual service/startup item, and deleting only the extracted directory. The terminal zip inspection proves readability and required entries only; it does not prove the full manual flow. |
+
+### Prerequisite dispositions carried by this appendix
+
+`last_scan_at` remains a known limitation: the column exists but has no write path in the reviewed implementation. Settings-after-restart is `NOT MEASURED`. `normalizePath` code/unit evidence covers lowercase drive prefixes and preserves the root slash (`C:\` → `c:\`); pre-existing stored `c:` rows were not migrated. Positive startup-scan E2E, volume/muted persistence E2E, and Liked four-key sorting E2E were not run in this task. The uppercase cwd and `CODEBUDDY_SAFE_DELETE_ENABLED=0` rule was used for the terminal gates. These dispositions do not claim release/tagging or close Phase 8.
