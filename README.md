@@ -52,25 +52,28 @@ Phase 5 已完成 T5.1~T5.7（收尾评审 PASS_WITH_NOTES）；Phase 6 期间�
 - ✅ **songsCount 通道**（T4.11 getStats）
 - **顺延项**：QueuePanel position selector 化 → **Phase 7 承接**（评审明确「Phase 6 顺手」未做）；Albums 卡片播放钮副作用升级（playContext([]) 停止正在播）→ Phase 6 期间 **T6.2 已正式接通**（handleCardPlay 先 get 再 playContext，trackCount=0 不渲染死按钮）——副作用解除 ✅；Recent 30 天窗口 → 0.1 按条数上限口径收口（备案不做）；CSP data:（T6.4 追加，风险评估通过）；CollageCover dataURL 无缓存 → [Minor] 数百歌单时建议 LRU，Phase 8 性能实测复查。
 
-**Phase 6（收藏、歌单、最近播放）——Phase 7 前置清单（第三方收尾评审产出，2026-09-12，按序）**
+**Phase 6（收藏、歌单、最近播放）——Phase 7 前置清单收口情况（2026-09-12 更新）**
 
-Phase 6 已完成 T6.0~T6.6。最终状态：**656 unit tests / typecheck 0 / e2e 22 passed（两轮零 flaky）**；favorites/playlists 双新切片职责边界干净零交叉污染；F6-1/F6-2/F6-3/F7-1/F7-2 验收映射逐条落实；docs/design 术语整改零视觉改动经程序化验证。
+Phase 6 已完成 T6.0~T6.6（收尾评审 PASS_WITH_NOTES）。Phase 7 期间原前置清单逐项收口：
 
-- **[T7.3 承接] addFolder 后必须显式 `library:scan`**（计划 825 行 V1.7 澄清）——T7.6 e2e 已按此编排，UI 不得省略。
-- **[T7.3 承接] folderRepo.normalizePath 边界加固**（UNC 大小写 / `C:\`→`c:` / 空串）——Phase 6 顺延未做，目录管理 UI 是最后消费时机（风险中低，README 在案）。
-- **[T7.1 承接] settings:set 持久化口径**——音量 500ms debounce（VOLUME_SAVE_DEBOUNCE_MS）+ muted 即时持久化已实现；设置页新控件沿用：离散开关直写、连续值 debounce。
-- **[Phase 7 承接] QueuePanel position selector 化**（Phase 6「顺手」未做）——照 usePlayingTrackId 先例，正式写入 T7 任务备注。
-- **Recent 30 天窗口**——0.1 按条数上限口径收口（Recent.tsx 留痕），不建议 0.1 做。
-- **T7.6 重启断言复用 T6.6 基建**——launchWithUserData（fixtures.ts）已验证顺序 launch 无 profile 锁风险；「关 autoScanOnStartup 重启无扫描事件」同模式。
-- **行内确认条样式复用**——.inline-confirm 现落 playlists.css（页面级），Settings 页复用时评估上移共享层（CSS 组织纪律）。
-- **测试缺口备忘**：Liked 5 键排序仅默认键有 e2e（余四键单测）；拖拽/乐观回滚错误路径仅单测（错误注入 e2e 成本高，可接受）；favoritesStore 并发双 toggle 回滚口径建议 Phase 7 顺手补一例；200 首 M4 人工脚本待 Phase 8。
-**现状核查（2026-09-12 主会话实锤，缩小 T7 实际工作量）**
+- ✅ **addFolder 显式扫描**——Phase 7 收尾评审揪出 **Critical：UI 添加目录后未触发扫描**（handleAddFolder 只刷新列表；单测固化无 scan 现状 + e2e 直连绕行 = 任务级双漏）→ **已修**（Settings.tsx 成功分支补 `await api.library.scan()` + scanCalls 断言；提交 bd36a8a）。**教训**：e2e 取证绕行（page.evaluate 直连）会掩盖 UI 契约缺口——收尾评审的存在意义。
+- ✅ **folderRepo.normalizePath 边界加固**（T7.3：空串 throw/盘符根补分隔符/UNC 归一；存量 `c:` 行迁移备案见下）
+- ✅ **QueuePanel position selector 化**（T7.1 承接：useQueueView + Profiler 计数测试，评审核实非假优化）
+- ✅ **settings:set 持久化口径**（T7.1：set 返回合并后完整 Settings 作确认回读，一次 IPC；音量 500ms debounce 既有）
+- ⏸ **Recent 30 天窗口**——0.1 按条数上限口径收口（备案不做）；**确认条样式上移评估**——结论「不上移」（App.tsx 全局引入天然生效，settings.css 头注留痕）
+- ⏸ **测试缺口**：Liked 4 键排序/拖拽错误注入/favoritesStore 并发回滚用例/e2e volume 持久化/正向启动扫描 e2e——按评审分级随 Phase 8 顺手或 M 脚本
 
-- `library:addFolder` **已支持可选 path 参数**（payload `{path?}`，无 path 走系统对话框）——T7.6 e2e「直传 path」零新增，未来 CLI 亦可复用。
-- `startupScan(autoScanOnStartup)` **已在 main/index.ts:180 接线**——T7.3 的「启动时自动扫描」开关仅做 UI 绑定（settings 四键已含该键）。
-- **无 app 版本通道**——T7.5 About 需新增最小 `app:getVersion`（main 侧 `app.getVersion()` 标准做法）。
-- **目录移除/禁用后的曲目处置语义未定**——repo 侧 removeFolder/setFolderEnabled 已有（含协议 folderCache 失效回调），但「曲目是否立即 markMissing」待裁定（T7.6 e2e 两种口径均接受）。
-- **settings 语言键值域锁定 `'zh-CN'`**（T3.4 KEY_VALIDATORS）——T7.2 下拉占位「English · 0.5 提供」与校验一致，无需扩值域。
+**Phase 7（设置页与 Library 管理）——Phase 8 前置清单（第三方收尾评审产出，2026-09-12，按序）**
+
+Phase 7 已完成 T7.1~T7.6（收尾评审 NEEDS_FIXES → Critical 修复后达 PASS 线）。最终状态：**705 unit tests / typecheck 0 / e2e 26 passed（两轮零 flaky）**；F8-1/F8-2/F1-1 验收映射逐条落实（F1-5 载体为 Phase 8）。
+
+- **[T8.1 首日] electron-builder.yml 定稿**：现状模板默认（appId com.electron.app/productName app/NSIS target/publish example.com）与 §3.8 绿色目录+build.bat 路线不符；**resources/icon.ico 缺失**（评审 ls 实证）——构建首日必须处理。
+- **[T8 前裁定] last_scan_at 死列处置**：建列全链路零写入（T7.6 实证「last_scan_at 佐证不可用」）——实现写入/删列/写进已知限制三选一（建议 0.1 写进已知限制）。
+- **[T8.2] docs/perf-0.1.md 未建**（计划允许新建）；gen-sample-library.mjs 就位；§6.2 七项指标、§6.3 M1-M8 脚本在计划原文。
+- **[T8] M4 200 首歌单拖拽排序人工脚本**待执行（README Phase 6 清单承接）。
+- **[T8.5] 人工复核「设置修改后重启全部保持」**执行未留痕 + normalizePath 存量 `c:` 行口径写入 README 已知限制。
+- **[建议] 正向启动扫描 e2e**（autoScanOnStartup=true 重启→新文件入库；T7.6d 仅反例+阳性对照）；volume/muted 持久化 e2e；Liked 4 键排序 e2e。
+- **[环境]** 测试一律大写 `D:\Dev\windy-concert` cwd + `CODEBUDDY_SAFE_DELETE_ENABLED=0`（CI/贡献者文档化——评审三连实锤）。
 
 **Phase 3（IPC / Preload / 设置 / i18n）——前置清单收口情况（2026-09-11 Phase 4 收尾更新）**
 
