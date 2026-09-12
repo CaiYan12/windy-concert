@@ -2,7 +2,9 @@
 
 Measurement date: 2026-09-12 (Asia/Shanghai)
 
-Base revision: `2a70920e95fb32ee69b12b47bf71361ff439bbe7`
+Base revision: `bf9a4cda572fe4d6822254ba87ab69a652b71da0`
+
+Round 1 fix: production scan assembly now passes `logDir: join(userData, 'logs')`; the assembly contract is covered by `tests/unit/library/scanAssembly.test.ts`.
 
 This is the T8.2 evidence record. It distinguishes direct release-artifact evidence, packaged-app observations, and metrics that could not be observed under the required manual boundary. A `NOT MEASURED` row is not a pass.
 
@@ -17,8 +19,8 @@ This is the T8.2 evidence record. It distinguishes direct release-artifact evide
 | Node.js | `v24.18.0` |
 | npm | `12.0.2` |
 | Packaged executable | `D:\Dev\windy-concert\build\Windy Concert.exe` |
-| Packaged user-data directory | `C:\Users\Einn Tzai\AppData\Local\Temp\windy-concert-phase8-userdata-wmjJSA` |
-| Git base | `2a70920e95fb32ee69b12b47bf71361ff439bbe7` |
+| Packaged user-data directory (raw helper output) | `C:\Users\EINNTZ~1\AppData\Local\Temp\windy-concert-phase8-userdata-BXEYf0` |
+| Git base before fix commit | `bf9a4cda572fe4d6822254ba87ab69a652b71da0` |
 
 The packaged-app capture closed all `Windy Concert` processes before cleanup. The temporary user-data directory was retained as an auxiliary raw-evidence location; it is outside the repository and is not a release artifact.
 
@@ -30,7 +32,7 @@ The exact required target was resolved outside the repository:
 
 `C:\Users\Einn Tzai\AppData\Local\Temp\windy-concert-phase8-30000`
 
-Before generation, the target did not exist, the resolved path was outside `D:\Dev\windy-concert`, and the C: volume had `37,345,480,704` B free (`34.78` GiB). The generator's own required-space check also passed.
+Before generation, the target did not exist, the resolved path was outside `D:\Dev\windy-concert`, and the C: volume had `37,277,147,136` B free (`34.72` GiB). The generator's own required-space check also passed.
 
 Command:
 
@@ -56,42 +58,70 @@ Raw generator output:
 生成文件 : 30000（预期 30000）
 目录数   : 61（1 根 + 10 艺术家 + 50 专辑）
 总字节数 : 880569000 B (839.78 MB)
-耗时     : 20.14 s
+耗时     : 20.97 s
 ```
 
 The post-generation inventory confirmed `30,000` files and `880,569,000` B. No `--force` option was used.
 
-### Packaged-app scan attempt
+### Packaged-app scan and search capture
 
-The real packaged executable was launched twice with the same isolated `WC_USER_DATA` directory. The first run added the generated library and invoked the real `library:rescanAll`; the second run relied on the packaged app's startup scan with the persisted folder and database. The app capture exited `0` and reported `30,000` tracks after the full scan.
+The real packaged executable was launched twice with the same isolated `WC_USER_DATA` directory. The first run added the generated library and invoked the real `library:rescanAll`; the second run relied on the packaged app's startup scan with the persisted folder and database. The capture exited `0`, and the packaged user-data log contained the required full and incremental lines.
 
-The required `scan.log` evidence was unavailable. The inspected production assembly at `src/main/index.ts:128-140` passes `db`, `getFolders`, `coverDroppedExtra`, and `onProgress` to `createScanService`, but does not pass the optional `logDir`. The writer exists at `src/main/library/scanService.ts:481-484` and is conditional on `deps.logDir`. Consequently, the expected path below did not exist after both packaged runs:
+The production assembly fix is at `src/main/index.ts`: `createScanService` receives `logDir: join(userData, 'logs')`. The focused contract test is `tests/unit/library/scanAssembly.test.ts`; the existing scan-service writer test remains in `tests/unit/library/scanService.test.ts`.
 
-`C:\Users\Einn Tzai\AppData\Local\Temp\windy-concert-phase8-userdata-wmjJSA\logs\scan.log`
+Exact packaged rebuild chain used before capture:
 
-The packaged app did emit these auxiliary `scan:progress` observations:
-
-```json
-{"phase":"done","done":30000,"total":30000,"elapsedMs":88027}
-{"phase":"stat","done":30000,"total":30000,"elapsedMs":6065}
-{"phase":"done","done":30000,"total":30000,"elapsedMs":6250}
+```powershell
+$env:CODEBUDDY_SAFE_DELETE_ENABLED = '0'
+& '.\build.bat'
+$packageExitCode = $LASTEXITCODE
+Write-Output "PACKAGE_BUILD_EXIT_CODE=$packageExitCode"
 ```
 
-These values are retained for diagnosis but are not promoted to the `scan.log` contract. They also do not provide the required `parsed`, `adopted`, and `skipped` fields.
+Exact PowerShell capture chain used after `build.bat` rebuilt the package:
+
+```powershell
+$env:T82_PERF_DIR = Join-Path ([System.IO.Path]::GetTempPath()) 'windy-concert-phase8-30000'
+& node '.t82-perf-capture.mjs'
+$captureExitCode = $LASTEXITCODE
+Write-Output "CAPTURE_EXIT_CODE=$captureExitCode"
+```
+
+The temporary `.t82-perf-capture.mjs` helper created `WC_USER_DATA` under the user temp directory, removed inherited `ELECTRON_RUN_AS_NODE` before launching `build\Windy Concert.exe`, invoked the real preload APIs, collected main-process `[search]` lines, wrote a result JSON under the user temp directory, and was removed after evidence review. The capture result path was `C:\Users\Einn Tzai\AppData\Local\Temp\windy-concert-phase8-capture-result.json`.
+
+Raw `scan.log` path:
+
+`C:\Users\EINNTZ~1\AppData\Local\Temp\windy-concert-phase8-userdata-BXEYf0\logs\scan.log`
+
+Raw lines:
+
+```json
+{"at":"2026-09-12T13:45:23.831Z","mode":"full","total":30000,"parsed":30000,"skipped":0,"adopted":0,"missingMarked":0,"coversDropped":17629,"elapsedMs":90049}
+{"at":"2026-09-12T13:45:31.579Z","mode":"incremental","total":30000,"parsed":0,"skipped":0,"adopted":0,"missingMarked":0,"coversDropped":0,"elapsedMs":5607}
+```
 
 ## Seven §6.2 metrics
 
 | Metric | Threshold | Raw measured value | Evidence method | Status |
 |---|---:|---|---|---|
-| 首次全量扫描 | ≤5 min / 30,000 tracks | `scan:progress` done `elapsedMs=88027`; required `scan.log` absent | Packaged app full rescan; auxiliary only, missing required log fields | NOT MEASURED |
+| 首次全量扫描 | ≤5 min / 30,000 tracks | `scan.log` full line: `elapsedMs=90049`, `total=30000`, `parsed=30000`, `skipped=0`, `adopted=0` | Real packaged app full rescan | PASS |
 | 启动到可交互 | ≤3 s | No valid manual double-click ×3 observation | Direct packaged executable/DOM automation is not the required manual stopwatch from double-click to Songs scrollable | NOT MEASURED |
-| 启动增量扫描 | ≤10 s | `scan:progress` done `elapsedMs=6250`; required `scan.log` absent | Second packaged launch with persisted folder; auxiliary only | NOT MEASURED |
-| 搜索出结果 | ≤300 ms | Ten handler samples: `2, 15, 0, 1, 1, 2, 0, 1, 0, 1` ms; median `1` ms | Real packaged-app main-process `[search]` diagnostics, including `夜曲` and `Track` | PASS |
+| 启动增量扫描 | ≤10 s | `scan.log` incremental line: `elapsedMs=5607`, `total=30000`, `parsed=0`, `skipped=0`, `adopted=0` | Second packaged launch with persisted folder | PASS |
+| 搜索出结果 | ≤300 ms | Ten handler samples: `2, 14, 1, 0, 1, 1, 0, 0, 1, 1` ms; median `1` ms | Real packaged-app main-process `[search]` diagnostics, including `夜曲` and `Track` | PASS |
 | 空库内存 | ≤500 MB | Not observed | Task Manager idle working-set observation unavailable in this agent session | NOT MEASURED |
 | 切歌起音 | ≤500 ms | Not observed | No honest ten-track audible-output timing was available; requires desktop/audio manual script | NOT MEASURED |
-| 发布 zip 体积 | ≤200 MB | `157,723,406` B (`157.72` MB decimal; `150.42` MiB) | Existing `Windy-Concert-0.1.0-win64.zip` direct file-property measurement | PASS |
+| 发布 zip 体积 | ≤200 MB | `32,968,578` B (`32.97` MB decimal; `31.44` MiB) | `build.bat zip` output artifact, direct property/hash/readability inspection | PASS |
 
-The zip was not regenerated: running `build.bat zip` would overwrite the existing `Windy-Concert-0.1.0-win64.zip`, which is explicitly outside this task's mutation scope. The measured artifact's SHA-256 was `E9F3B70D339FFCD7538233E3580A11F13D9C71EB9C71FB7B1361A53AAE176AC1`.
+The prescribed zip command was run with `CODEBUDDY_SAFE_DELETE_ENABLED=0`:
+
+```powershell
+$env:CODEBUDDY_SAFE_DELETE_ENABLED = '0'
+& '.\build.bat' 'zip'
+$zipExitCode = $LASTEXITCODE
+Write-Output "ZIP_COMMAND_EXIT_CODE=$zipExitCode"
+```
+
+Observed command exit code: `0`. The inner `Compress-Archive` emitted a PowerShell `IOException` while disposing a user-mapped section, but the resulting archive was readable with `System.IO.Compression.ZipFile.OpenRead` and contained `147` entries. The measured artifact's SHA-256 was `7D80572B414A22BE236C0F087BBBA6F98981455D087473DE0E3231248086D93D`.
 
 ## Search raw evidence
 
@@ -99,23 +129,23 @@ The ten real main-process handler lines were:
 
 ```text
 [search] q="夜曲" len=2 path=like tracks=50 albums=0 artists=0 playlists=0 took=2ms
-[search] q="Track" len=5 path=fts tracks=50 albums=0 artists=0 playlists=0 took=15ms
-[search] q="艺术家a" len=4 path=fts tracks=0 albums=0 artists=0 playlists=0 took=0ms
-[search] q="专辑" len=2 path=like tracks=50 albums=2 artists=0 playlists=0 took=1ms
+[search] q="Track" len=5 path=fts tracks=50 albums=0 artists=0 playlists=0 took=14ms
+[search] q="艺术家a" len=4 path=fts tracks=0 albums=0 artists=0 playlists=0 took=1ms
+[search] q="专辑" len=2 path=like tracks=50 albums=2 artists=0 playlists=0 took=0ms
 [search] q="1" len=1 path=like tracks=50 albums=0 artists=0 playlists=0 took=1ms
-[search] q="50" len=2 path=like tracks=50 albums=0 artists=0 playlists=0 took=2ms
+[search] q="50" len=2 path=like tracks=50 albums=0 artists=0 playlists=0 took=1ms
 [search] q="mp3" len=3 path=fts tracks=0 albums=0 artists=0 playlists=0 took=0ms
-[search] q="flac" len=4 path=fts tracks=0 albums=0 artists=0 playlists=0 took=1ms
-[search] q="a" len=1 path=like tracks=50 albums=0 artists=0 playlists=0 took=0ms
+[search] q="flac" len=4 path=fts tracks=0 albums=0 artists=0 playlists=0 took=0ms
+[search] q="a" len=1 path=like tracks=50 albums=0 artists=0 playlists=0 took=1ms
 [search] q="不存在" len=3 path=fts tracks=0 albums=0 artists=0 playlists=0 took=1ms
 ```
 
-Median calculation: sorted values are `0, 0, 0, 1, 1, 1, 1, 2, 2, 15`; the even-sample median is `(1 + 1) / 2 = 1 ms`.
+Median calculation: sorted values are `0, 0, 0, 1, 1, 1, 1, 1, 2, 14`; the even-sample median is `(1 + 1) / 2 = 1 ms`.
 
 ## Cleanup proof
 
-At cleanup time all packaged app processes were closed (`Windy Concert` process count `0`). Only the exact generated sample-library directory was removed; `build`, `release`, and the existing zip were not targeted. The final verification command checked `Test-Path -LiteralPath $perfDir`, which returned `False` with exit code `0`. The C: volume then reported `37,278,949,376` B free (`34.72` GiB).
+At cleanup time all packaged app processes were closed (`Windy Concert` process count `0`). Only the exact generated sample-library directory was removed; `build`, `release`, and the regenerated zip were not targeted by cleanup. The final verification command checked `Test-Path -LiteralPath $perfDir`, which returned `False` with exit code `0`.
 
 ## Release boundary
 
-No metric row is marked `FAIL`. T8.2 is nevertheless open because the required `scan.log` full/incremental evidence and the three desktop-bound manual rows remain unavailable. These rows must be handled by the later manual-script task; this report does not claim T8.2 completion.
+No metric row is marked `FAIL`. T8.2 remains open only for the three desktop-bound manual rows: startup-to-interactive, empty-library memory, and track-start latency. These rows must be handled by the later manual-script task; this report does not claim T8.2 complete.

@@ -130,6 +130,7 @@ app.whenReady().then(() => {
       {
         db,
         getFolders,
+        logDir: join(userData, 'logs'),
         coverDroppedExtra: () => coverService.droppedCount,
         onProgress: (p) => {
           mainWindow?.webContents.send(IPC.CHANNELS.SCAN_PROGRESS, p);
