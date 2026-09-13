@@ -192,3 +192,19 @@ The statuses below are the required product-owner/manual rows. None is marked `P
 ### Prerequisite dispositions carried by this appendix
 
 `last_scan_at` remains a known limitation: the column exists but has no write path in the reviewed implementation. Settings-after-restart is `NOT MEASURED`. `normalizePath` code/unit evidence covers lowercase drive prefixes and preserves the root slash (`C:\` → `c:\`); pre-existing stored `c:` rows were not migrated. Positive startup-scan E2E, volume/muted persistence E2E, and Liked four-key sorting E2E were not run in this task. The uppercase cwd and `CODEBUDDY_SAFE_DELETE_ENABLED=0` rule was used for the terminal gates. These dispositions do not claim release/tagging or close Phase 8.
+
+## Controller packaged-flow supplement (2026-09-13)
+
+These observations supplement the M rows but do not convert a manual row to `PASS` when the required human interaction or audible check was not performed.
+
+| Area | Fresh evidence | Boundary |
+|---|---|---|
+| Startup-to-interactive proxy | Computer Use explicit packaged-app launches to the Songs page: `869 ms`, `724 ms`, `736 ms`; median `736 ms` | This is an app-launch proxy, not a literal desktop-icon double-click; §6.2 row remains `NOT MEASURED`.
+| M1 add/search/browse supplement | Packaged automation added the isolated fixture directory, full scan finished `total=8`, `parsed=7`, Songs rendered 8 rows, and `夜曲` search returned 2 tracks | Cover-wall/artists visual walkthrough and audible double-click playback not observed; M1 remains `NOT MEASURED`.
+| M2 positive startup supplement | One new fixture file was added while running; same user-data restart with `autoScanOnStartup=true` reached track count `8` from `7` | This is packaged bridge automation, not the prescribed manual restart observation; M2 remains `NOT MEASURED`.
+| M3 settings persistence supplement | `volume=0.57` and `muted=true` survived a same-user-data restart | Seek, audible volume/mute, Repeat, Shuffle, and six combinations not measured; M3 remains `NOT MEASURED`.
+| M4 playlist supplement | Valid 200-track fixture set; first/middle/last IDs before and after reverse reorder differed as expected and `persisted=true` after restart | Reorder was driven through the packaged bridge, not a human drag; M4 remains `NOT MEASURED`.
+| M5 missing/reconnect supplement | Disabling the fixture folder produced `4` missing rows; re-enable + full rescan restored all rows to available with the ID set preserved | This is packaged bridge automation, not unplug/rename manual observation; M5 remains `NOT MEASURED`.
+| M8 extracted-package supplement | Copied/extracted zip launched successfully; extracted app scanned fixture `total=9` and search returned `3` tracks | Playback, residual startup-item/service check, and manual cleanup walkthrough not observed; M8 remains `NOT MEASURED`.
+
+M6 rapid 30,000-row Songs/Albums scrolling and M7 Windows default-output-device switching remain unmeasured. The fresh automatic gate `npm run test:e2e` completed `26 passed` on 2026-09-13; it is recorded as an automatic regression gate, not a substitute for M1-M8 manual rows.

@@ -73,6 +73,7 @@ Phase 7 已完成 T7.1~T7.6（收尾评审 NEEDS_FIXES → Critical 修复后达
 - **[T8] M4 200 首歌单拖拽排序人工脚本**：`NOT MEASURED`；必须实际拖拽 200 首并重启后核对首/中/尾标识，现有小规模 E2E 不能替代。
 - **[T8.5] 设置重启与路径边界**：设置修改后重启的人工复核 `NOT MEASURED`。当前 `normalizePath` 已由代码/单测证明 `C:\` → `c:\`（保留根分隔符），但历史存量 `c:` 行未迁移，继续按已知边界处理。
 - **[建议] 三项补充 E2E**：正向 `autoScanOnStartup=true` 重启入库、volume/muted 跨重启持久化、Liked 四键排序本次均未运行；现有 T7.6d 只覆盖 `autoScanOnStartup=false` 的负向重启与手动重扫阳性对照，现有 Favorites E2E 只覆盖收藏→Liked→取消同步。
+- **[2026-09-13 控制器补充]**：串行 packaged-flow 取证已补充 M1/M2/M3/M4/M5/M8 的自动化辅助结果（含正向启动扫描、设置持久化、200 首重排重启、missing→恢复与解压包扫描/搜索）；因未执行人工拖拽、双击图标、听音、输出设备切换与快速滚动，M1-M8 人工行仍保持 `NOT MEASURED`。`npm run test:e2e` 新鲜结果为 26 passed。
 - **[环境]** 测试一律从大写 `D:\Dev\windy-concert` cwd 执行，并在 Vitest/相关测试进程前设置 `CODEBUDDY_SAFE_DELETE_ENABLED=0`；Task 3 未运行会启动 Electron 的 `npm run test:e2e`，该桌面边界由串行控制器负责。
 
 **Phase 3（IPC / Preload / 设置 / i18n）——前置清单收口情况（2026-09-11 Phase 4 收尾更新）**
